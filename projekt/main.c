@@ -22,8 +22,6 @@ void mouse_down(int x, int y);
 
 
 ////////////////////////////////////////
-int button(char *Te
-
 int rect_x = 0;
 int rect_y = 0;
 

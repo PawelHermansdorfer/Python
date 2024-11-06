@@ -60,6 +60,14 @@ u64	./projekt/main.c	/^typedef unsigned long long u64;$/;"	t	typeref:typename:un
 i32	./projekt/main.c	/^typedef int i32;$/;"	t	typeref:typename:int	file:
 b32	./projekt/main.c	/^typedef int b32;$/;"	t	typeref:typename:int	file:
 f32	./projekt/main.c	/^typedef float f32;$/;"	t	typeref:typename:float	file:
+rect_x	./projekt/main.c	/^int rect_x = 0;$/;"	v	typeref:typename:int
+rect_y	./projekt/main.c	/^int rect_y = 0;$/;"	v	typeref:typename:int
+init	./projekt/main.c	/^init(u32 width, u32 height)$/;"	f	typeref:typename:void
+resize	./projekt/main.c	/^resize(u32 width, u32 height)$/;"	f	typeref:typename:void
+render	./projekt/main.c	/^render(void)$/;"	f	typeref:typename:void
+update	./projekt/main.c	/^update(f32 dt)$/;"	f	typeref:typename:void
+keydown	./projekt/main.c	/^keydown(int key)$/;"	f	typeref:typename:void
+mouse_pressed	./projekt/main.c	/^mouse_pressed(int x, int y)$/;"	f	typeref:typename:void
 !_TAG_KIND_DESCRIPTION!JavaScript	f,function	/functions/
 !_TAG_KIND_DESCRIPTION!JavaScript	c,class	/classes/
 !_TAG_KIND_DESCRIPTION!JavaScript	m,method	/methods/
