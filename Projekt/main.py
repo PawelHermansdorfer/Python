@@ -30,16 +30,30 @@ bird_textures = [
 
 texture_to_world_scale = 120
 
+
 ######################################## Init variables
 frame_start = time.perf_counter()
 frame_end   = 0
 frame_time  = 0
 
+def world_to_screen(pos):
+    world_to_screen_scale  = (texture_to_world_scale * game_scale[0],
+                              -texture_to_world_scale * game_scale[1])
+    result =  [round(pos[0] * world_to_screen_scale[0] + window_dim[0]/2),
+               round(pos[1] * world_to_screen_scale[1] + window_dim[1]/2)]
+    return result
+
+# Background
+background_width  = bg_texture.get_size()[0] / texture_to_world_scale
+background_height = bg_texture.get_size()[1] / texture_to_world_scale
+left_side_of_background  = -background_width/2
+right_side_of_background = background_width/2
+
 # Bird
 bird_pos = [-0.7, 0]
 bird_vel = 0
-bird_jump_vel = 2.3
-g = -9.8
+bird_jump_vel = 2.4
+g = -9.1
 
 # Pipes
 pipe_width  = pipe_texture.get_size()[0] / texture_to_world_scale
@@ -49,27 +63,17 @@ gap_between_pipes = 3.5
 def get_pipes_y():
     return gap_between_pipes/2 + (random.random() - 0.5) * 2 
 
-pipes_speed = 1
-pipes_x = 0
-pipes_y = get_pipes_y()
+pipe_count = 2
+pipes_vel = -0.5
+pipes_dx = background_width/2 + pipe_width/2
+pipes_spawn_x = right_side_of_background + pipe_width/2
+first_pipe_x = pipes_spawn_x
+pipes_y = [get_pipes_y(), get_pipes_y()]
 
-bottom_of_top_pipe  = pipes_y - pipe_height/2
-top_of_bottom_pipe  = pipes_y - gap_between_pipes + pipe_height/2
-left_side_of_pipes  = pipes_x + pipe_width/2
-right_side_of_pipes = pipes_x - pipe_width/2
-
-# Background
-background_width  = bg_texture.get_size()[0] / texture_to_world_scale
-background_height = bg_texture.get_size()[1] / texture_to_world_scale
-left_side_of_background  = -background_width/2
-right_side_of_background = background_width/2
-
-def world_to_screen(pos):
-    world_to_screen_scale  = (texture_to_world_scale * game_scale[0],
-                              -texture_to_world_scale * game_scale[1])
-    result =  [round(pos[0] * world_to_screen_scale[0] + window_dim[0]/2),
-               round(pos[1] * world_to_screen_scale[1] + window_dim[1]/2)]
-    return result
+# bottom_of_top_pipe  = pipes_y - pipe_height/2
+# top_of_bottom_pipe  = pipes_y - gap_between_pipes + pipe_height/2
+# left_side_of_pipes  = pipes_x + pipe_width/2
+# right_side_of_pipes = pipes_x - pipe_width/2
 
 
 ######################################## Game loop
@@ -109,12 +113,12 @@ while not stoped:
         bird_pos[1] += bird_vel * dt
 
         # Pipe
-        if pipes_x + pipe_width < left_side_of_background:
-            pipes_x = right_side_of_background + pipe_width
-            pipes_y = pipes_y = get_pipes_y()
+        if first_pipe_x + pipe_width/2 < left_side_of_background:
+            first_pipe_x = first_pipe_x + pipes_dx
+            pipes_y[0] = pipes_y[1]
+            pipes_y[1] = get_pipes_y()
 
-        pipes_x -= pipes_speed * dt
-        
+        first_pipe_x += pipes_vel * dt
 
 
     ######################################## Draw
@@ -132,8 +136,12 @@ while not stoped:
     blit(bg_texture, (0, 0), 0)
 
     # Pipes
-    blit(pipe_texture, (pipes_x, pipes_y), 180)
-    blit(pipe_texture, (pipes_x, pipes_y - gap_between_pipes), 0)
+    blit(pipe_texture, (first_pipe_x, pipes_y[0]), 180)
+    blit(pipe_texture, (first_pipe_x, pipes_y[0] - gap_between_pipes), 0)
+
+    blit(pipe_texture, (first_pipe_x + pipes_dx, pipes_y[1]), 180)
+    blit(pipe_texture, (first_pipe_x + pipes_dx, pipes_y[1] - gap_between_pipes), 0)
+
 
     # bird
     bird_texture_idx = int(frame_start*7 % len(bird_textures))
@@ -153,6 +161,7 @@ while not stoped:
         y += 30
 
     pygame.display.flip()
+
 
     ######################################## Frame rate
     elapsed = time.perf_counter() - frame_start
