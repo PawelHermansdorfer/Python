@@ -1,11 +1,14 @@
-# Assets from https://github.com/samuelcust/flappy-bird-assets
 
 import pygame
 import time
 import os
+import random
 
 pygame.init()
+random.seed(69)
 
+
+######################################## Load data
 fps = 60
 s_per_frame = 1/fps
 game_scale = [1.5, 1.5]
@@ -14,9 +17,10 @@ window = pygame.display.set_mode(window_dim, pygame.RESIZABLE)
 
 debug_font = pygame.font.Font(None, 32) 
 
+# Assets from https://github.com/samuelcust/flappy-bird-assets
 dir_path = os.path.dirname(os.path.realpath(__file__))
-pipe_texture  = pygame.image.load(dir_path + "\\res\\pipe.png")
-bg_texture    = pygame.image.load(dir_path + "\\res\\bg.png")
+pipe_texture  = pygame.image.load(dir_path + "\\res\\pipe-green.png")
+bg_texture    = pygame.image.load(dir_path + "\\res\\background-day.png")
 bird_textures = [
          pygame.image.load(dir_path + "\\res\\yellowbird-upflap.png"),
          pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
@@ -24,43 +28,55 @@ bird_textures = [
          pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
 ]
 
-pipe_texture_dim = pipe_texture.get_size()
-pipe_texture = pygame.transform.scale(pipe_texture, (pipe_texture_dim[0] * game_scale[0],
-                                                     pipe_texture_dim[1] * game_scale[1]))
+texture_to_world_scale = 120
 
-bg_texture_dim = bg_texture.get_size()
-bg_texture = pygame.transform.scale(bg_texture, (bg_texture_dim[0] * game_scale[0],
-                                                 bg_texture_dim[1] * game_scale[1]))
-
-for i in range(len(bird_textures)):
-    bird_texture_dim = bird_textures[i].get_size()
-    bird_textures[i] = pygame.transform.scale(bird_textures[i], (bird_texture_dim[0] * game_scale[0],
-                                                                 bird_texture_dim[1] * game_scale[1]))
-
-def animate_bird(frame_start) -> int: # idx in texture arrays
-    return int(frame_start*3 % len(bird_textures))
-
-
-########################################
+######################################## Init variables
 frame_start = time.perf_counter()
 frame_end   = 0
-frame_time  = 1
+frame_time  = 0
 
+# Bird
 bird_pos = [-0.7, 0]
 bird_vel = 0
-g = 15
+bird_jump_vel = 2.3
+g = -9.8
 
-world_to_screen_scale  = (120 * game_scale[0], -120 * game_scale[1])
+# Pipes
+pipe_width  = pipe_texture.get_size()[0] / texture_to_world_scale
+pipe_height = pipe_texture.get_size()[1] / texture_to_world_scale
+gap_between_pipes = 3.5
+
+def get_pipes_y():
+    return gap_between_pipes/2 + (random.random() - 0.5) * 2 
+
+pipes_speed = 1
+pipes_x = 0
+pipes_y = get_pipes_y()
+
+bottom_of_top_pipe  = pipes_y - pipe_height/2
+top_of_bottom_pipe  = pipes_y - gap_between_pipes + pipe_height/2
+left_side_of_pipes  = pipes_x + pipe_width/2
+right_side_of_pipes = pipes_x - pipe_width/2
+
+# Background
+background_width  = bg_texture.get_size()[0] / texture_to_world_scale
+background_height = bg_texture.get_size()[1] / texture_to_world_scale
+left_side_of_background  = -background_width/2
+right_side_of_background = background_width/2
+
 def world_to_screen(pos):
+    world_to_screen_scale  = (texture_to_world_scale * game_scale[0],
+                              -texture_to_world_scale * game_scale[1])
     result =  [round(pos[0] * world_to_screen_scale[0] + window_dim[0]/2),
                round(pos[1] * world_to_screen_scale[1] + window_dim[1]/2)]
     return result
 
-########################################
+
+######################################## Game loop
 started = False
 stoped = False
 while not stoped:
-    # Inputs
+    ######################################## Inputs
     space_pressed = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -76,40 +92,69 @@ while not stoped:
                     space_pressed = True
                     if not started: started = True
 
-    ########################################
-    # Update
-    dt = frame_time
 
-    if started:
-        bird_vel += -g * dt
+    ######################################## Update
+    if frame_time != 0:
+        dt = frame_time
+
+        # Bird
+        bird_vel += g * dt
         if space_pressed:
-            bird_vel = 4
+            bird_vel = bird_jump_vel
+
+        if not started and bird_pos[1] < -0:
+            bird_vel = bird_jump_vel
+            bird_pos[1] = 0
+
         bird_pos[1] += bird_vel * dt
 
+        # Pipe
+        if pipes_x + pipe_width < left_side_of_background:
+            pipes_x = right_side_of_background + pipe_width
+            pipes_y = pipes_y = get_pipes_y()
 
-    ########################################
-    # Draw
+        pipes_x -= pipes_speed * dt
+        
+
+
+    ######################################## Draw
     window.fill((39, 43, 48))
 
     def blit(texture, pos, angle=0):
+        texture_dim = texture.get_size()
+        texture = pygame.transform.scale(texture, (texture_dim[0]*game_scale[0],
+                                                   texture_dim[1]*game_scale[1]))
         texture = pygame.transform.rotate(texture, angle)
         rect = texture.get_rect(center=world_to_screen(pos))
         window.blit(texture, rect)
 
+    # background
     blit(bg_texture, (0, 0), 0)
 
-    bird_texture = bird_textures[animate_bird(frame_start)]
-    bird_angle = max(min(bird_vel, 4), -4) * 8
+    # Pipes
+    blit(pipe_texture, (pipes_x, pipes_y), 180)
+    blit(pipe_texture, (pipes_x, pipes_y - gap_between_pipes), 0)
+
+    # bird
+    bird_texture_idx = int(frame_start*7 % len(bird_textures))
+    bird_texture = bird_textures[bird_texture_idx]
+    bird_angle = max(min(bird_vel*3 + 8, 4), -4) * 8
     blit(bird_texture, bird_pos, bird_angle)
 
-    window.blit(debug_font.render(f'Frame time:  {frame_time*1000:.1f}ms | {1/frame_time:.0f}FPS', True, (255,255,255)), (0, 0))
-    window.blit(debug_font.render(f'pos: ({bird_pos[0]:.1f}, {bird_pos[1]:.1f})', True, (255,255,255)), (0, 30))
-    window.blit(debug_font.render(f'vel: {bird_vel:.1f}',                         True, (255,255,255)), (0, 60))
+    # Telemetry 
+    telemetry = [
+            f'Frame time:  {frame_time*1000:.1f}ms | {(1/frame_time) if frame_time != 0 else 0:.0f}FPS',
+            f'pos: ({bird_pos[0]:.1f}, {bird_pos[1]:.1f})',
+            f'vel: {bird_vel:.1f}',
+    ]
+    y = 0
+    for line in telemetry:
+        window.blit(debug_font.render(line, True, (255,255,255)), (0, y))
+        y += 30
 
     pygame.display.flip()
 
-    ########################################
-    # Frame rate
+    ######################################## Frame rate
     elapsed = time.perf_counter() - frame_start
     if elapsed < s_per_frame:
         time.sleep(s_per_frame - elapsed)
