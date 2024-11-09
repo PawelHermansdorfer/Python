@@ -3,32 +3,39 @@ import pygame
 import time
 import os
 import random
+import numpy as np 
 
 pygame.init()
 random.seed(69)
 
 
 ######################################## Load data
-fps = 60
+fps = 999
 s_per_frame = 1/fps
-game_scale = [1.5, 1.5]
-window_dim = [288*game_scale[0], 512*game_scale[1]]
-window = pygame.display.set_mode(window_dim, pygame.RESIZABLE)
+
+window = pygame.display.set_mode((1000,600), pygame.RESIZABLE)
+window_dim = window.get_size()
+
+game_scale_factor = window_dim[1]/512
+game_scale = (game_scale_factor, game_scale_factor)
+game_dim = (288*game_scale[0], 512*game_scale[1])
+game_surface = pygame.Surface(game_dim)
 
 debug_font = pygame.font.Font(None, 32) 
 
 # Assets from https://github.com/samuelcust/flappy-bird-assets
 dir_path = os.path.dirname(os.path.realpath(__file__))
-pipe_texture  = pygame.image.load(dir_path + "\\res\\pipe-green.png")
-bg_texture    = pygame.image.load(dir_path + "\\res\\background-day.png")
-bird_textures = [
+pipe_texture   = pygame.image.load(dir_path + "\\res\\pipe-green.png")
+bg_texture     = pygame.image.load(dir_path + "\\res\\background-day.png")
+ground_texture = pygame.image.load(dir_path + "\\res\\base.png")
+bird_textures  = [
          pygame.image.load(dir_path + "\\res\\yellowbird-upflap.png"),
          pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
          pygame.image.load(dir_path + "\\res\\yellowbird-downflap.png"),
          pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
 ]
 
-texture_to_world_scale = 120
+texture_to_world_scale = 1/120
 
 
 ######################################## Init variables
@@ -37,49 +44,77 @@ frame_end   = 0
 frame_time  = 0
 
 def world_to_screen(pos):
-    world_to_screen_scale  = (texture_to_world_scale * game_scale[0],
-                              -texture_to_world_scale * game_scale[1])
-    result =  [round(pos[0] * world_to_screen_scale[0] + window_dim[0]/2),
-               round(pos[1] * world_to_screen_scale[1] + window_dim[1]/2)]
+    world_to_screen_scale  = (1/texture_to_world_scale * game_scale[0],
+                              -1/texture_to_world_scale * game_scale[1])
+    world_to_screen_offset = (game_dim[0]/2, game_dim[1]/2)
+    result =  [round(pos[0] * world_to_screen_scale[0] + world_to_screen_offset[0]),
+               round(pos[1] * world_to_screen_scale[1] + world_to_screen_offset[1])]
     return result
 
 # Background
-background_width  = bg_texture.get_size()[0] / texture_to_world_scale
-background_height = bg_texture.get_size()[1] / texture_to_world_scale
-left_side_of_background  = -background_width/2
-right_side_of_background = background_width/2
+background_width  = bg_texture.get_size()[0] * texture_to_world_scale
+background_height = bg_texture.get_size()[1] * texture_to_world_scale
+background_half_width  = background_width/2
+background_half_height = background_height/2
+left_side_of_background  = -background_half_width
+right_side_of_background = background_half_width
+bottom_of_background = -background_half_height
+
+# Ground
+ground_width  = ground_texture.get_size()[0] * texture_to_world_scale
+ground_height = ground_texture.get_size()[1] * texture_to_world_scale
+ground_half_width  = ground_width/2
+ground_half_height = ground_height/2
+ground_x = 0
+ground_y = bottom_of_background + ground_half_height - 0.5
 
 # Bird
+bird_width  = bird_textures[0].get_size()[0] * texture_to_world_scale # all bird pngs have the same size  
+bird_height = bird_textures[0].get_size()[1] * texture_to_world_scale
+bird_half_width  = bird_width/2
+bird_half_height = bird_height/2
+
+bird_hitbox_r = bird_half_width/2 # circle
+
 bird_pos = [-0.7, 0]
 bird_vel = 0
 bird_jump_vel = 2.4
 g = -9.1
 
+inputs = np.array([0, 0, 0, 0])
+hidden_neuron_count = 5
+hidden_weights = np.random.normal(size=(inputs.shape[0], hidden_neuron_count))
+hidden_biases  = np.random.normal(size=hidden_neuron_count)
+output_weights = np.random.normal(size=hidden_neuron_count)
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+def bird_get_brain_output():
+    return sigmoid(sigmoid(inputs @  hidden_weights + hidden_biases) @ output_weights)
+
+
 # Pipes
-pipe_width  = pipe_texture.get_size()[0] / texture_to_world_scale
-pipe_height = pipe_texture.get_size()[1] / texture_to_world_scale
+pipe_width  = pipe_texture.get_size()[0] * texture_to_world_scale
+pipe_height = pipe_texture.get_size()[1] * texture_to_world_scale
+pipe_half_width  = pipe_width/2
+pipe_half_height = pipe_height/2
 gap_between_pipes = 3.5
 
-def get_pipes_y():
-    return gap_between_pipes/2 + (random.random() - 0.5) * 2 
+def get_new_pipe_y():
+    return gap_between_pipes/2 + (random.random() - 0.3) * 1.5 
 
 pipe_count = 2
 pipes_vel = -0.5
-pipes_dx = background_width/2 + pipe_width/2
-pipes_spawn_x = right_side_of_background + pipe_width/2
+pipes_dx = background_half_width + pipe_half_width
+pipes_spawn_x = right_side_of_background + pipe_half_width
 first_pipe_x = pipes_spawn_x
-pipes_y = [get_pipes_y(), get_pipes_y()]
-
-# bottom_of_top_pipe  = pipes_y - pipe_height/2
-# top_of_bottom_pipe  = pipes_y - gap_between_pipes + pipe_height/2
-# left_side_of_pipes  = pipes_x + pipe_width/2
-# right_side_of_pipes = pipes_x - pipe_width/2
-
+pipes_y = [get_new_pipe_y(), get_new_pipe_y()]
 
 ######################################## Game loop
 started = False
 stoped = False
 while not stoped:
+    window_dim = window.get_size()
+
     ######################################## Inputs
     space_pressed = False
     for event in pygame.event.get():
@@ -88,6 +123,11 @@ while not stoped:
         elif event.type == pygame.VIDEORESIZE:
             window_dim = window.get_size()
             world_to_screen_offset = [window_dim[0]/2, window_dim[1]/2]
+
+            game_scale_factor = window_dim[1]/512
+            game_scale = (game_scale_factor, game_scale_factor)
+            game_dim = (288*game_scale[0], 512*game_scale[1])
+            game_surface = pygame.Surface(game_dim)
         elif event.type == pygame.KEYDOWN:
             match event.key:
                 case pygame.K_q:
@@ -101,6 +141,26 @@ while not stoped:
     if frame_time != 0:
         dt = frame_time
 
+        def die(): pass
+
+        # Handle bird-pipe collision
+        for pipe_x, pipe_y in [(first_pipe_x, pipes_y[0]),
+                               (first_pipe_x + pipes_dx, pipes_y[1])]:
+            bottom_of_top_pipe  = pipe_y - pipe_half_height
+            top_of_bottom_pipe  = pipe_y - gap_between_pipes + pipe_half_height
+            left_side_of_pipes  = pipe_x - pipe_half_width
+            right_side_of_pipes = pipe_x + pipe_half_width
+
+            if (left_side_of_pipes <= bird_pos[0] + bird_hitbox_r 
+                and right_side_of_pipes >= bird_pos[0] - bird_hitbox_r):
+                    if (bird_pos[1] + bird_hitbox_r >= bottom_of_top_pipe
+                        or bird_pos[1] + bird_hitbox_r <= top_of_bottom_pipe):
+                        die() # make death
+
+        # Handle bird-ground collision
+        if bird_pos[1] - bird_hitbox_r <= ground_y + ground_half_height:
+            die() # make death
+
         # Bird
         bird_vel += g * dt
         if space_pressed:
@@ -112,17 +172,24 @@ while not stoped:
 
         bird_pos[1] += bird_vel * dt
 
-        # Pipe
-        if first_pipe_x + pipe_width/2 < left_side_of_background:
+        # Pipes
+        if first_pipe_x + pipe_half_width < left_side_of_background:
             first_pipe_x = first_pipe_x + pipes_dx
             pipes_y[0] = pipes_y[1]
-            pipes_y[1] = get_pipes_y()
+            pipes_y[1] = get_new_pipe_y()
 
         first_pipe_x += pipes_vel * dt
 
+        # Ground
+        if ground_x + ground_half_width < left_side_of_background:
+            ground_x += ground_width
+
+        ground_x += pipes_vel * dt # ground has same speed as pipes
+
 
     ######################################## Draw
-    window.fill((39, 43, 48))
+    window.fill((33,33,33))
+    game_surface.fill((33,33,33))
 
     def blit(texture, pos, angle=0):
         texture_dim = texture.get_size()
@@ -130,7 +197,7 @@ while not stoped:
                                                    texture_dim[1]*game_scale[1]))
         texture = pygame.transform.rotate(texture, angle)
         rect = texture.get_rect(center=world_to_screen(pos))
-        window.blit(texture, rect)
+        game_surface.blit(texture, rect)
 
     # background
     blit(bg_texture, (0, 0), 0)
@@ -142,16 +209,46 @@ while not stoped:
     blit(pipe_texture, (first_pipe_x + pipes_dx, pipes_y[1]), 180)
     blit(pipe_texture, (first_pipe_x + pipes_dx, pipes_y[1] - gap_between_pipes), 0)
 
+    # Ground
+    blit(ground_texture, (ground_x, ground_y))
+    blit(ground_texture, (ground_x + 2*ground_half_width - 0.005, ground_y)) # hacky -0.005 to be sure there's no pixel gap between ground tiles
 
-    # bird
+    # Bird
     bird_texture_idx = int(frame_start*7 % len(bird_textures))
     bird_texture = bird_textures[bird_texture_idx]
-    bird_angle = max(min(bird_vel*3 + 8, 4), -4) * 8
+    bird_angle = max(min(bird_vel*3.4 + 8, 4), -4) * 8
     blit(bird_texture, bird_pos, bird_angle)
+
+    # Game surface
+    window.blit(game_surface, (0, 0))
+
+    # Neural network
+    input_count = inputs.shape[0]
+    input_x = ((window_dim[0] - game_dim[0]) / 4) + game_dim[0]
+    space_between_input_nodes = 60
+    input_node_r = 20
+    y = game_dim[1]/2 - (input_count - 1)*(2*input_node_r + space_between_input_nodes)*0.5
+    for i in range(input_count):
+        pygame.draw.circle(window, (255, 255, 255), (input_x, y), radius=input_node_r)
+        y += 2*input_node_r + space_between_input_nodes
+
+    hidden_x = ((window_dim[0] - game_dim[0]) / 2) + game_dim[0]
+    space_between_hidden_nodes = 60
+    hidden_node_r = 20
+    y = game_dim[1]/2 - (hidden_neuron_count - 1)*(2*hidden_node_r + space_between_hidden_nodes)*0.5
+    for i in range(hidden_neuron_count):
+        pygame.draw.circle(window, (255, 255, 255), (hidden_x, y), radius=hidden_node_r)
+        y += 2*hidden_node_r + space_between_hidden_nodes
+
+    output_x = (3*(window_dim[0] - game_dim[0])/4) + game_dim[0]
+    output_y = game_dim[1]/2
+    output_r = 20
+    pygame.draw.circle(window, (255, 255, 255), (output_x, output_y), radius=output_r)
 
     # Telemetry 
     telemetry = [
-            f'Frame time:  {frame_time*1000:.1f}ms | {(1/frame_time) if frame_time != 0 else 0:.0f}FPS',
+            f'Frame time:  {frame_time*1000:.1f}ms',
+            f'FPS: {(1/frame_time) if frame_time != 0 else 0:.0f}',
             f'pos: ({bird_pos[0]:.1f}, {bird_pos[1]:.1f})',
             f'vel: {bird_vel:.1f}',
     ]
