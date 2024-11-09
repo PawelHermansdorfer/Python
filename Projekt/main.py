@@ -13,7 +13,8 @@ random.seed(69)
 fps = 999
 s_per_frame = 1/fps
 
-window = pygame.display.set_mode((1000,600), pygame.RESIZABLE)
+# window = pygame.display.set_mode((1000,600), pygame.RESIZABLE)
+window = pygame.display.set_mode((0,0), pygame.RESIZABLE)
 window_dim = window.get_size()
 
 game_scale_factor = window_dim[1]/512
@@ -81,16 +82,11 @@ bird_vel = 0
 bird_jump_vel = 2.4
 g = -9.1
 
-inputs = np.array([0, 0, 0, 0])
+input_values = np.array([0, 0, 0, 0])
 hidden_neuron_count = 5
-hidden_weights = np.random.normal(size=(inputs.shape[0], hidden_neuron_count))
+hidden_weights = np.random.normal(size=(input_values.shape[0], hidden_neuron_count))
 hidden_biases  = np.random.normal(size=hidden_neuron_count)
 output_weights = np.random.normal(size=hidden_neuron_count)
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-def bird_get_brain_output():
-    return sigmoid(sigmoid(inputs @  hidden_weights + hidden_biases) @ output_weights)
-
 
 # Pipes
 pipe_width  = pipe_texture.get_size()[0] * texture_to_world_scale
@@ -115,7 +111,7 @@ stoped = False
 while not stoped:
     window_dim = window.get_size()
 
-    ######################################## Inputs
+    ######################################## input_values
     space_pressed = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -138,6 +134,9 @@ while not stoped:
 
 
     ######################################## Update
+    hidden_values = np.tanh(input_values @  hidden_weights + hidden_biases)
+    output_value  = np.tanh(hidden_values @ output_weights)
+
     if frame_time != 0:
         dt = frame_time
 
@@ -223,34 +222,57 @@ while not stoped:
     window.blit(game_surface, (0, 0))
 
     # Neural network
-    input_count = inputs.shape[0]
-    input_x = ((window_dim[0] - game_dim[0]) / 4) + game_dim[0]
-    space_between_input_nodes = 60
+    input_nodes_positions  = []
+    hidden_nodes_positions = []
+    output_nodes_positions = []
+
+    input_node_count = input_values.shape[0]
+    input_nodes_x = ((window_dim[0] - game_dim[0]) / 4) + game_dim[0]
     input_node_r = 20
-    y = game_dim[1]/2 - (input_count - 1)*(2*input_node_r + space_between_input_nodes)*0.5
-    for i in range(input_count):
-        pygame.draw.circle(window, (255, 255, 255), (input_x, y), radius=input_node_r)
+    space_between_input_nodes = 60
+    y = game_dim[1]/2 - (input_node_count - 1)*(2*input_node_r + space_between_input_nodes)*0.5
+    for i in range(input_node_count):
+        input_nodes_positions.append((input_nodes_x, y))
         y += 2*input_node_r + space_between_input_nodes
 
-    hidden_x = ((window_dim[0] - game_dim[0]) / 2) + game_dim[0]
+    hidden_noe_x = ((window_dim[0] - game_dim[0]) / 2) + game_dim[0]
     space_between_hidden_nodes = 60
     hidden_node_r = 20
     y = game_dim[1]/2 - (hidden_neuron_count - 1)*(2*hidden_node_r + space_between_hidden_nodes)*0.5
     for i in range(hidden_neuron_count):
-        pygame.draw.circle(window, (255, 255, 255), (hidden_x, y), radius=hidden_node_r)
+        hidden_nodes_positions.append((hidden_noe_x, y))
         y += 2*hidden_node_r + space_between_hidden_nodes
 
     output_x = (3*(window_dim[0] - game_dim[0])/4) + game_dim[0]
     output_y = game_dim[1]/2
+    output_node_pos = (output_x, output_y)
     output_r = 20
-    pygame.draw.circle(window, (255, 255, 255), (output_x, output_y), radius=output_r)
+
+    def get_node_or_weight_color(v):
+        r = min(max(v, -1), 0) * -255
+        g = min(max(v, 0), 1) * 255
+        return (r, g, 0)
+
+    for i, input_node_pos in enumerate(input_nodes_positions):
+        for j, hidden_node_pos in enumerate(hidden_nodes_positions):
+            weight_color = get_node_or_weight_color(hidden_weights[i, j])
+            pygame.draw.line(window, weight_color, input_node_pos, hidden_node_pos, width=2)
+        input_color = get_node_or_weight_color(input_values[i])
+        pygame.draw.circle(window, input_color, input_node_pos, radius=hidden_node_r)
+
+    for i, hidden_node_pos in enumerate(hidden_nodes_positions):
+        weight_color = get_node_or_weight_color(output_weights[i])
+        pygame.draw.line(window, weight_color, hidden_node_pos, output_node_pos, width=2)
+        hidden_color = get_node_or_weight_color(hidden_values[i])
+        pygame.draw.circle(window, hidden_color, hidden_node_pos, radius=hidden_node_r)
+
+    output_color = get_node_or_weight_color(output_value)
+    pygame.draw.circle(window, output_color, output_node_pos, radius=hidden_node_r)
 
     # Telemetry 
     telemetry = [
             f'Frame time:  {frame_time*1000:.1f}ms',
             f'FPS: {(1/frame_time) if frame_time != 0 else 0:.0f}',
-            f'pos: ({bird_pos[0]:.1f}, {bird_pos[1]:.1f})',
-            f'vel: {bird_vel:.1f}',
     ]
     y = 0
     for line in telemetry:
