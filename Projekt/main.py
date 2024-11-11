@@ -82,9 +82,9 @@ bird_vel = 0
 bird_jump_vel = 2.4
 g = -9.1
 
-input_values = np.array([0, 0, 0, 0])
+input_count = 4
 hidden_neuron_count = 5
-hidden_weights = np.random.normal(size=(input_values.shape[0], hidden_neuron_count))
+hidden_weights = np.random.normal(size=(input_count, hidden_neuron_count))
 hidden_biases  = np.random.normal(size=hidden_neuron_count)
 output_weights = np.random.normal(size=hidden_neuron_count)
 
@@ -134,8 +134,10 @@ while not stoped:
 
 
     ######################################## Update
+    input_values  = np.array([bird_pos[1], bird_vel, 0, 0])
     hidden_values = np.tanh(input_values @  hidden_weights + hidden_biases)
     output_value  = np.tanh(hidden_values @ output_weights)
+    output_activated = output_value >= 0
 
     if frame_time != 0:
         dt = frame_time
@@ -256,13 +258,17 @@ while not stoped:
     for i, input_node_pos in enumerate(input_nodes_positions):
         for j, hidden_node_pos in enumerate(hidden_nodes_positions):
             weight_color = get_node_or_weight_color(hidden_weights[i, j])
-            pygame.draw.line(window, weight_color, input_node_pos, hidden_node_pos, width=2)
+            weight_width = int(np.ceil(np.abs(hidden_weights[i, j]) * 1.5 + 1))
+            pygame.draw.line(window, weight_color, input_node_pos, hidden_node_pos, width=weight_width)
         input_color = get_node_or_weight_color(input_values[i])
         pygame.draw.circle(window, input_color, input_node_pos, radius=hidden_node_r)
+        input_value_text = debug_font.render(f'{}', True, (255,255,255)
+        window.blit(), (0, y))
 
     for i, hidden_node_pos in enumerate(hidden_nodes_positions):
         weight_color = get_node_or_weight_color(output_weights[i])
-        pygame.draw.line(window, weight_color, hidden_node_pos, output_node_pos, width=2)
+        weight_width = int(np.ceil(np.abs(output_weights[i]) * 1.5 + 1))
+        pygame.draw.line(window, weight_color, hidden_node_pos, output_node_pos, width=weight_width)
         hidden_color = get_node_or_weight_color(hidden_values[i])
         pygame.draw.circle(window, hidden_color, hidden_node_pos, radius=hidden_node_r)
 
