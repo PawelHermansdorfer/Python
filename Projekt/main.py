@@ -1,3 +1,8 @@
+# TODO(Pawel Hermansdorfer): draw birds reversed
+# TODO(Pawel Hermansdorfer): 0 index - best - with elitis whill be drawn last
+# TODO(Pawel Hermansdorfer): 0 index with elitism will have red skin POG
+
+# https://www.pygame.org/wiki/MatplotlibPygame
 
 import pygame
 import time
@@ -14,7 +19,7 @@ fps = 60
 s_per_frame = 1/fps
 
 # window = pygame.display.set_mode((1000,600), pygame.RESIZABLE)
-window = pygame.display.set_mode((0,0), pygame.RESIZABLE)
+window = pygame.display.set_mode((0,0))
 window_dim = window.get_size()
 
 game_scale_factor = window_dim[1]/512
@@ -91,6 +96,10 @@ def die(idx):
     alive[idx] = False
     alive_count -= 1
 
+fitness = np.array([0 for _ in range(BIRD_COUNT)])
+mutation_propability = 0.5
+crossover_propability = 0.5
+
 input_count = 4
 hidden_neuron_count = 5
 input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
@@ -99,6 +108,9 @@ hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD
 hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
 output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
 output_value = [0 for _ in range(BIRD_COUNT)]
+
+# Genetic algorithm params
+elitism = True
 
 # Pipes
 pipe_width  = pipe_texture.get_size()[0] * texture_to_world_scale
@@ -149,6 +161,8 @@ while not stoped:
 
         for bird_idx in range(BIRD_COUNT):
             if alive[bird_idx]:
+                fitness[bird_idx] += 1
+
                 left_side_of_first_pipe   = first_pipe_x - pipe_half_width
                 right_side_of_first_pipe  = first_pipe_x + pipe_half_width
                 bottom_of_top_first_pipe  = pipes_y[0] - pipe_half_height
@@ -227,12 +241,65 @@ while not stoped:
         alive = [True for _ in range(BIRD_COUNT)]
         alive_count = BIRD_COUNT
 
-        input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
-        hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
-        hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
-        hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
-        output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
-        output_value = [0 for _ in range(BIRD_COUNT)]
+        # Tournament selection
+        probabilities = fitness / fitness.sum()
+        indexes = np.arange(0, BIRD_COUNT)
+
+        insert_to_next_gen_idx = 0
+        if elitism:
+            best_one = np.argmax(fitness)
+            input_values[insert_to_next_gen_idx]   = input_values[best_one]
+            hidden_weights[insert_to_next_gen_idx] = hidden_weights[best_one]
+            hidden_biases[insert_to_next_gen_idx]  = hidden_biases[best_one]
+            hidden_values[insert_to_next_gen_idx]  = hidden_values[best_one]
+            output_weights[insert_to_next_gen_idx] = output_weights[best_one]
+            output_value[insert_to_next_gen_idx]   = output_value[best_one]
+            insert_to_next_gen_idx += 1
+
+        while insert_to_next_gen_idx < BIRD_COUNT:
+            rnd = np.random.rand()
+            do_mutation  = rnd <= mutation_propability 
+            do_crossover = rnd <= crossover_propability
+
+            if do_mutation:
+                parent_idx = np.random.choice(indexes, 1, p=probabilities)[0]
+                child_idx = insert_to_next_gen_idx
+                insert_to_next_gen_idx += 1
+
+                input_valuespchild_idx    = np.array([0, 0, 0, 0])
+                hidden_weights[child_idx] = hidden_weights[parent_idx] * np.random.normal(1.0, 0.1, hidden_neuron_count)
+                hidden_biases[child_idx]  = hidden_biases[parent_idx] * np.random.normal(1.0, 0.1, hidden_neuron_count)
+                hidden_values[child_idx]  = np.array([0 for _ in range(hidden_neuron_count)])
+                output_weights[child_idx] = output_weights[parent_idx] * np.random.normal(1.0, 0.1, hidden_neuron_count)
+                output_value[child_idx]   = 0
+
+                fitness[child_idx] = 0
+
+            # Crossovers
+            if do_crossover and insert_to_next_gen_idx < BIRD_COUNT:
+                parent_a_idx = np.random.choice(indexes, 1, p=probabilities)[0]
+                parent_b_idx = np.random.choice(indexes, 1, p=probabilities)[0]
+                child_idx = insert_to_next_gen_idx
+                insert_to_next_gen_idx += 1
+
+                input_valuespchild_idx    = np.array([0, 0, 0, 0])
+                hidden_weights[child_idx] = (hidden_weights[parent_a_idx] + hidden_weights[parent_b_idx]) / 2
+                hidden_biases[child_idx]  = (hidden_biases[parent_a_idx] + hidden_biases[parent_b_idx]) / 2
+                hidden_values[child_idx]  = np.array([0 for _ in range(hidden_neuron_count)])
+                output_weights[child_idx] = (output_weights[parent_a_idx] + output_weights[parent_b_idx]) / 2
+                output_value[child_idx]   = 0
+
+                fitness[child_idx] = 0
+
+
+        # fitness = np.array([0 for _ in range(BIRD_COUNT)])
+
+        # input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
+        # hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
+        # hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+        # hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
+        # output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+        # output_value = [0 for _ in range(BIRD_COUNT)]
 
 
     ######################################## Draw
@@ -277,8 +344,7 @@ while not stoped:
     hidden_nodes_positions = []
     output_nodes_positions = []
 
-    # TODO: FIND BEST(max fitness) BIRD
-    best_bird_idx = 0
+    best_bird_idx = np.argmax(fitness)
     input_node_count = input_values[best_bird_idx].shape[0]
     input_nodes_x = ((window_dim[0] - game_dim[0]) / 4) + game_dim[0]
     input_node_r = 20
