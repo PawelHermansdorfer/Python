@@ -10,7 +10,7 @@ random.seed(69)
 
 
 ######################################## Load data
-fps = 999
+fps = 60
 s_per_frame = 1/fps
 
 # window = pygame.display.set_mode((1000,600), pygame.RESIZABLE)
@@ -75,18 +75,30 @@ bird_height = bird_textures[0].get_size()[1] * texture_to_world_scale
 bird_half_width  = bird_width/2
 bird_half_height = bird_height/2
 
-bird_hitbox_r = bird_half_width/2 # circle
+bird_hitbox_r = bird_half_width # circle
 
-bird_pos = [-0.7, 0]
-bird_vel = 0
+BIRD_COUNT = 50
+birds_y = [0 for _ in range(BIRD_COUNT)]
+birds_x = -0.7
+bird_vel = [0 for _ in range(BIRD_COUNT)]
 bird_jump_vel = 2.4
 g = -9.1
 
+alive = [True for _ in range(BIRD_COUNT)]
+alive_count = BIRD_COUNT
+def die(idx):
+    global alive_count
+    alive[idx] = False
+    alive_count -= 1
+
 input_count = 4
 hidden_neuron_count = 5
-hidden_weights = np.random.normal(size=(input_count, hidden_neuron_count))
-hidden_biases  = np.random.normal(size=hidden_neuron_count)
-output_weights = np.random.normal(size=hidden_neuron_count)
+input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
+hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
+hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
+output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+output_value = [0 for _ in range(BIRD_COUNT)]
 
 # Pipes
 pipe_width  = pipe_texture.get_size()[0] * texture_to_world_scale
@@ -106,7 +118,6 @@ first_pipe_x = pipes_spawn_x
 pipes_y = [get_new_pipe_y(), get_new_pipe_y()]
 
 ######################################## Game loop
-started = False
 stoped = False
 while not stoped:
     window_dim = window.get_size()
@@ -130,48 +141,65 @@ while not stoped:
                     stoped = True
                 case pygame.K_SPACE:
                     space_pressed = True
-                    if not started: started = True
 
 
     ######################################## Update
-    input_values  = np.array([bird_pos[1], bird_vel, 0, 0])
-    hidden_values = np.tanh(input_values @  hidden_weights + hidden_biases)
-    output_value  = np.tanh(hidden_values @ output_weights)
-    output_activated = output_value >= 0
-
     if frame_time != 0:
         dt = frame_time
 
-        def die(): pass
+        for bird_idx in range(BIRD_COUNT):
+            if alive[bird_idx]:
+                left_side_of_first_pipe   = first_pipe_x - pipe_half_width
+                right_side_of_first_pipe  = first_pipe_x + pipe_half_width
+                bottom_of_top_first_pipe  = pipes_y[0] - pipe_half_height
+                top_of_bottom_first_pipe  = pipes_y[0] - gap_between_pipes + pipe_half_height
+                left_side_of_second_pipe   = first_pipe_x + pipes_dx - pipe_half_width
+                right_side_of_second_pipe  = first_pipe_x + pipes_dx + pipe_half_width
+                bottom_of_top_second_pipe  = pipes_y[1] - pipe_half_height
+                top_of_bottom_second_pipe  = pipes_y[1] - gap_between_pipes + pipe_half_height
 
-        # Handle bird-pipe collision
-        for pipe_x, pipe_y in [(first_pipe_x, pipes_y[0]),
-                               (first_pipe_x + pipes_dx, pipes_y[1])]:
-            bottom_of_top_pipe  = pipe_y - pipe_half_height
-            top_of_bottom_pipe  = pipe_y - gap_between_pipes + pipe_half_height
-            left_side_of_pipes  = pipe_x - pipe_half_width
-            right_side_of_pipes = pipe_x + pipe_half_width
+                left_side_of_next_pipe   = 0
+                right_side_of_next_pipe  = 0
+                bottom_of_top_next_pipe  = 0
+                top_of_bottom_next_pipe  = 0
+                if right_side_of_first_pipe >= birds_x - bird_hitbox_r:
+                    left_side_of_next_pipe   = left_side_of_first_pipe
+                    right_side_of_next_pipe  = right_side_of_first_pipe
+                    bottom_of_top_next_pipe  = bottom_of_top_first_pipe
+                    top_of_bottom_next_pipe  = top_of_bottom_first_pipe
+                else:
+                    left_side_of_next_pipe   = left_side_of_second_pipe
+                    right_side_of_next_pipe  = right_side_of_second_pipe
+                    bottom_of_top_next_pipe  = bottom_of_top_second_pipe
+                    top_of_bottom_next_pipe  = top_of_bottom_second_pipe
 
-            if (left_side_of_pipes <= bird_pos[0] + bird_hitbox_r 
-                and right_side_of_pipes >= bird_pos[0] - bird_hitbox_r):
-                    if (bird_pos[1] + bird_hitbox_r >= bottom_of_top_pipe
-                        or bird_pos[1] + bird_hitbox_r <= top_of_bottom_pipe):
-                        die() # make death
 
-        # Handle bird-ground collision
-        if bird_pos[1] - bird_hitbox_r <= ground_y + ground_half_height:
-            die() # make death
+                dist_to_next_pipe = 0 # left_side_of_next_pipe - birds_x
+                y_difference_to_next_pipe = top_of_bottom_next_pipe - birds_y[bird_idx]
 
-        # Bird
-        bird_vel += g * dt
-        if space_pressed:
-            bird_vel = bird_jump_vel
+                input_values[bird_idx]  = np.array([birds_y[bird_idx], bird_vel[bird_idx],
+                                                    dist_to_next_pipe, y_difference_to_next_pipe])
+                hidden_values[bird_idx] = np.tanh(input_values[bird_idx] @  hidden_weights[bird_idx] + hidden_biases[bird_idx])
+                output_value[bird_idx]  = np.tanh(hidden_values[bird_idx] @ output_weights[bird_idx])
+                output_activated = output_value[bird_idx] >= 0
 
-        if not started and bird_pos[1] < -0:
-            bird_vel = bird_jump_vel
-            bird_pos[1] = 0
 
-        bird_pos[1] += bird_vel * dt
+                if (left_side_of_next_pipe <= birds_x + bird_hitbox_r 
+                    and right_side_of_next_pipe >= birds_x - bird_hitbox_r):
+                        if (birds_y[bird_idx] + bird_hitbox_r >= bottom_of_top_next_pipe
+                            or birds_y[bird_idx] - bird_hitbox_r <= top_of_bottom_next_pipe):
+                            die(bird_idx) # make death
+
+                # Handle bird-ground collision
+                if birds_y[bird_idx] - bird_hitbox_r <= ground_y + ground_half_height:
+                    die(bird_idx) # make death
+
+                # Bird
+                bird_vel[bird_idx] += g * dt
+                if output_activated:
+                    bird_vel[bird_idx] = bird_jump_vel
+
+                birds_y[bird_idx] += bird_vel[bird_idx] * dt
 
         # Pipes
         if first_pipe_x + pipe_half_width < left_side_of_background:
@@ -186,6 +214,25 @@ while not stoped:
             ground_x += ground_width
 
         ground_x += pipes_vel * dt # ground has same speed as pipes
+
+    # Check for new generation
+    if alive_count == 0:
+        ground_x = 0
+
+        first_pipe_x = pipes_spawn_x
+        pipes_y = [get_new_pipe_y(), get_new_pipe_y()]
+
+        birds_y = [0 for _ in range(BIRD_COUNT)]
+        bird_vel = [0 for _ in range(BIRD_COUNT)]
+        alive = [True for _ in range(BIRD_COUNT)]
+        alive_count = BIRD_COUNT
+
+        input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
+        hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
+        hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+        hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
+        output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+        output_value = [0 for _ in range(BIRD_COUNT)]
 
 
     ######################################## Draw
@@ -215,10 +262,12 @@ while not stoped:
     blit(ground_texture, (ground_x + 2*ground_half_width - 0.005, ground_y)) # hacky -0.005 to be sure there's no pixel gap between ground tiles
 
     # Bird
-    bird_texture_idx = int(frame_start*7 % len(bird_textures))
-    bird_texture = bird_textures[bird_texture_idx]
-    bird_angle = max(min(bird_vel*3.4 + 8, 4), -4) * 8
-    blit(bird_texture, bird_pos, bird_angle)
+    for bird_idx in range(BIRD_COUNT):
+        if alive[bird_idx]:
+            bird_texture_idx = int(frame_start*7 % len(bird_textures))
+            bird_texture = bird_textures[bird_texture_idx]
+            bird_angle = max(min(bird_vel[bird_idx]*3.4 + 8, 4), -4) * 8
+            blit(bird_texture, [birds_x, birds_y[bird_idx]], bird_angle)
 
     # Game surface
     window.blit(game_surface, (0, 0))
@@ -228,7 +277,9 @@ while not stoped:
     hidden_nodes_positions = []
     output_nodes_positions = []
 
-    input_node_count = input_values.shape[0]
+    # TODO: FIND BEST(max fitness) BIRD
+    best_bird_idx = 0
+    input_node_count = input_values[best_bird_idx].shape[0]
     input_nodes_x = ((window_dim[0] - game_dim[0]) / 4) + game_dim[0]
     input_node_r = 20
     space_between_input_nodes = 60
@@ -257,28 +308,29 @@ while not stoped:
 
     for i, input_node_pos in enumerate(input_nodes_positions):
         for j, hidden_node_pos in enumerate(hidden_nodes_positions):
-            weight_color = get_node_or_weight_color(hidden_weights[i, j])
-            weight_width = int(np.ceil(np.abs(hidden_weights[i, j]) * 1.5 + 1))
+            weight_color = get_node_or_weight_color(hidden_weights[best_bird_idx][i, j])
+            weight_width = int(np.ceil(np.abs(hidden_weights[best_bird_idx][i, j]) * 1.5 + 1))
             pygame.draw.line(window, weight_color, input_node_pos, hidden_node_pos, width=weight_width)
-        input_color = get_node_or_weight_color(input_values[i])
+        input_color = get_node_or_weight_color(input_values[best_bird_idx][i])
         pygame.draw.circle(window, input_color, input_node_pos, radius=hidden_node_r)
-        input_value_text = debug_font.render(f'{}', True, (255,255,255)
-        window.blit(), (0, y))
+        # input_value_text = debug_font.render(f'{}', True, (255,255,255)
+        # window.blit(), (0, y))
 
     for i, hidden_node_pos in enumerate(hidden_nodes_positions):
-        weight_color = get_node_or_weight_color(output_weights[i])
-        weight_width = int(np.ceil(np.abs(output_weights[i]) * 1.5 + 1))
+        weight_color = get_node_or_weight_color(output_weights[best_bird_idx][i])
+        weight_width = int(np.ceil(np.abs(output_weights[best_bird_idx][i]) * 1.5 + 1))
         pygame.draw.line(window, weight_color, hidden_node_pos, output_node_pos, width=weight_width)
-        hidden_color = get_node_or_weight_color(hidden_values[i])
+        hidden_color = get_node_or_weight_color(hidden_values[best_bird_idx][i])
         pygame.draw.circle(window, hidden_color, hidden_node_pos, radius=hidden_node_r)
 
-    output_color = get_node_or_weight_color(output_value)
+    output_color = get_node_or_weight_color(output_value[best_bird_idx])
     pygame.draw.circle(window, output_color, output_node_pos, radius=hidden_node_r)
 
     # Telemetry 
     telemetry = [
             f'Frame time:  {frame_time*1000:.1f}ms',
             f'FPS: {(1/frame_time) if frame_time != 0 else 0:.0f}',
+            f'Alive: {alive_count}',
     ]
     y = 0
     for line in telemetry:
