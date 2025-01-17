@@ -12,9 +12,6 @@ import numpy as np
 import pygame
 pygame.init()
 
-import imgui
-from imgui.integrations.pygame import PygameRenderer
-
 ########################################
 # User PARAMS
 game_speed_factor = 1
@@ -32,7 +29,7 @@ crossover_propability = 0.5
 fps = 60
 s_per_frame = 1/fps
 
-window = pygame.display.set_mode((0,0))
+window = pygame.display.set_mode((0,0), pygame.DOUBLEBUF)
 window_dim = window.get_size()
 
 game_scale_factor = window_dim[1]/512
@@ -40,6 +37,7 @@ game_scale = (game_scale_factor, game_scale_factor)
 game_dim = (288*game_scale[0], 512*game_scale[1])
 game_surface = pygame.Surface(game_dim)
 
+# Font
 debug_font = pygame.font.Font(None, 32) 
 
 # Assets from https://github.com/samuelcust/flappy-bird-assets
@@ -184,7 +182,6 @@ while not stoped:
                     stoped = True
                 case pygame.K_SPACE:
                     space_pressed = True
-
 
     ######################################## Update
     if frame_time != 0:
@@ -332,8 +329,6 @@ while not stoped:
                 fitness[bird_idx]  = 0
 
             alive_count = BIRD_COUNT
-
-
 
     ######################################## Draw
     window.fill((33,33,33))
