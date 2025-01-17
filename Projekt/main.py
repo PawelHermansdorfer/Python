@@ -1,24 +1,37 @@
-# TODO(Pawel Hermansdorfer): draw birds reversed
-# TODO(Pawel Hermansdorfer): 0 index - best - with elitis whill be drawn last
-# TODO(Pawel Hermansdorfer): 0 index with elitism will have red skin POG
-
+# TODO(Pawel Hermansdorfer): HUge fitnes boost for pasing pipe
+# TODO(Pawel Hermansdorfer): Fitness decrease when hit ground
+# TODO(Pawel Hermansdorfer): Commit genocide button(next gen)
+# TODO(Pawel Hermansdorfer): punish going over the top of the screen
 # https://www.pygame.org/wiki/MatplotlibPygame
 
-import pygame
 import time
 import os
-import random
+
 import numpy as np 
 
+import pygame
 pygame.init()
-random.seed(69)
 
+import imgui
+from imgui.integrations.pygame import PygameRenderer
+
+########################################
+# User PARAMS
+game_speed_factor = 1
+
+HIDDEN_NEURON_COUNT = 5
+normalize_inputs = False
+
+ELITISM = True
+mutation_propability = 0.5
+mutation_magnitude = 0.5
+
+crossover_propability = 0.5
 
 ######################################## Load data
 fps = 60
 s_per_frame = 1/fps
 
-# window = pygame.display.set_mode((1000,600), pygame.RESIZABLE)
 window = pygame.display.set_mode((0,0))
 window_dim = window.get_size()
 
@@ -34,12 +47,30 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 pipe_texture   = pygame.image.load(dir_path + "\\res\\pipe-green.png")
 bg_texture     = pygame.image.load(dir_path + "\\res\\background-day.png")
 ground_texture = pygame.image.load(dir_path + "\\res\\base.png")
-bird_textures  = [
+
+yellow_bird_textures  = [
          pygame.image.load(dir_path + "\\res\\yellowbird-upflap.png"),
          pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
          pygame.image.load(dir_path + "\\res\\yellowbird-downflap.png"),
          pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
 ]
+blue_bird_textures = [
+         pygame.image.load(dir_path + "\\res\\bluebird-upflap.png"),
+         pygame.image.load(dir_path + "\\res\\bluebird-midflap.png"),
+         pygame.image.load(dir_path + "\\res\\bluebird-downflap.png"),
+         pygame.image.load(dir_path + "\\res\\bluebird-midflap.png"),
+]
+red_bird_textures = [
+         pygame.image.load(dir_path + "\\res\\redbird-upflap.png"),
+         pygame.image.load(dir_path + "\\res\\redbird-midflap.png"),
+         pygame.image.load(dir_path + "\\res\\redbird-downflap.png"),
+         pygame.image.load(dir_path + "\\res\\redbird-midflap.png"),
+]
+bird_textures = [yellow_bird_textures, blue_bird_textures, red_bird_textures]
+bird_color_yellow = 0
+bird_color_blue = 1
+bird_color_red = 2
+# NOTE(Pawel Hermansdorfer): 1st gen random, later -> RED - elitism | BLUE - crossover | yellow - mutation
 
 texture_to_world_scale = 1/120
 
@@ -75,8 +106,8 @@ ground_x = 0
 ground_y = bottom_of_background + ground_half_height - 0.5
 
 # Bird
-bird_width  = bird_textures[0].get_size()[0] * texture_to_world_scale # all bird pngs have the same size  
-bird_height = bird_textures[0].get_size()[1] * texture_to_world_scale
+bird_width  = bird_textures[0][0].get_size()[0] * texture_to_world_scale # all bird pngs have the same size  
+bird_height = bird_textures[0][0].get_size()[1] * texture_to_world_scale
 bird_half_width  = bird_width/2
 bird_half_height = bird_height/2
 
@@ -89,6 +120,8 @@ bird_vel = [0 for _ in range(BIRD_COUNT)]
 bird_jump_vel = 2.4
 g = -9.1
 
+birds_colors = [np.random.choice([bird_color_yellow, bird_color_blue, bird_color_red]) for _ in range(BIRD_COUNT)]
+
 alive = [True for _ in range(BIRD_COUNT)]
 alive_count = BIRD_COUNT
 def die(idx):
@@ -97,11 +130,9 @@ def die(idx):
     alive_count -= 1
 
 fitness = np.array([0 for _ in range(BIRD_COUNT)])
-mutation_propability = 0.5
-crossover_propability = 0.5
 
 input_count = 4
-hidden_neuron_count = 5
+hidden_neuron_count = HIDDEN_NEURON_COUNT
 input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
 hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
 hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
@@ -110,7 +141,7 @@ output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD
 output_value = [0 for _ in range(BIRD_COUNT)]
 
 # Genetic algorithm params
-elitism = True
+elitism = ELITISM
 
 # Pipes
 pipe_width  = pipe_texture.get_size()[0] * texture_to_world_scale
@@ -120,7 +151,7 @@ pipe_half_height = pipe_height/2
 gap_between_pipes = 3.5
 
 def get_new_pipe_y():
-    return gap_between_pipes/2 + (random.random() - 0.3) * 1.5 
+    return gap_between_pipes/2 + (np.random.random() - 0.3) * 1.5 
 
 pipe_count = 2
 pipes_vel = -0.5
@@ -159,147 +190,149 @@ while not stoped:
     if frame_time != 0:
         dt = frame_time
 
-        for bird_idx in range(BIRD_COUNT):
-            if alive[bird_idx]:
-                fitness[bird_idx] += 1
+        for _ in range(game_speed_factor):
+            for bird_idx in range(BIRD_COUNT):
+                if alive[bird_idx]:
+                    fitness[bird_idx] += 1
 
-                left_side_of_first_pipe   = first_pipe_x - pipe_half_width
-                right_side_of_first_pipe  = first_pipe_x + pipe_half_width
-                bottom_of_top_first_pipe  = pipes_y[0] - pipe_half_height
-                top_of_bottom_first_pipe  = pipes_y[0] - gap_between_pipes + pipe_half_height
-                left_side_of_second_pipe   = first_pipe_x + pipes_dx - pipe_half_width
-                right_side_of_second_pipe  = first_pipe_x + pipes_dx + pipe_half_width
-                bottom_of_top_second_pipe  = pipes_y[1] - pipe_half_height
-                top_of_bottom_second_pipe  = pipes_y[1] - gap_between_pipes + pipe_half_height
+                    left_side_of_first_pipe   = first_pipe_x - pipe_half_width
+                    right_side_of_first_pipe  = first_pipe_x + pipe_half_width
+                    bottom_of_top_first_pipe  = pipes_y[0] - pipe_half_height
+                    top_of_bottom_first_pipe  = pipes_y[0] - gap_between_pipes + pipe_half_height
+                    left_side_of_second_pipe   = first_pipe_x + pipes_dx - pipe_half_width
+                    right_side_of_second_pipe  = first_pipe_x + pipes_dx + pipe_half_width
+                    bottom_of_top_second_pipe  = pipes_y[1] - pipe_half_height
+                    top_of_bottom_second_pipe  = pipes_y[1] - gap_between_pipes + pipe_half_height
 
-                left_side_of_next_pipe   = 0
-                right_side_of_next_pipe  = 0
-                bottom_of_top_next_pipe  = 0
-                top_of_bottom_next_pipe  = 0
-                if right_side_of_first_pipe >= birds_x - bird_hitbox_r:
-                    left_side_of_next_pipe   = left_side_of_first_pipe
-                    right_side_of_next_pipe  = right_side_of_first_pipe
-                    bottom_of_top_next_pipe  = bottom_of_top_first_pipe
-                    top_of_bottom_next_pipe  = top_of_bottom_first_pipe
-                else:
-                    left_side_of_next_pipe   = left_side_of_second_pipe
-                    right_side_of_next_pipe  = right_side_of_second_pipe
-                    bottom_of_top_next_pipe  = bottom_of_top_second_pipe
-                    top_of_bottom_next_pipe  = top_of_bottom_second_pipe
+                    left_side_of_next_pipe   = 0
+                    right_side_of_next_pipe  = 0
+                    bottom_of_top_next_pipe  = 0
+                    top_of_bottom_next_pipe  = 0
+                    if right_side_of_first_pipe >= birds_x - bird_hitbox_r:
+                        left_side_of_next_pipe   = left_side_of_first_pipe
+                        right_side_of_next_pipe  = right_side_of_first_pipe
+                        bottom_of_top_next_pipe  = bottom_of_top_first_pipe
+                        top_of_bottom_next_pipe  = top_of_bottom_first_pipe
+                    else:
+                        left_side_of_next_pipe   = left_side_of_second_pipe
+                        right_side_of_next_pipe  = right_side_of_second_pipe
+                        bottom_of_top_next_pipe  = bottom_of_top_second_pipe
+                        top_of_bottom_next_pipe  = top_of_bottom_second_pipe
+
+                    input_bird_y = birds_y[bird_idx]
+                    input_1 = 0 # bird_vel[bird_idx]
+                    input_2 = 0 # left_side_of_next_pipe
+                    input_next_pipe_gap_y = top_of_bottom_next_pipe
+
+                    if normalize_inputs:
+                        input_bird_y = (input_bird_y + background_half_height) / background_height
+                        input_bird_y = max(min(input_bird_y, 1), 0)
+
+                        input_next_pipe_gap_y = (top_of_bottom_next_pipe + background_half_height) / background_height
+                        input_next_pipe_gap_y = max(min(input_next_pipe_gap_y, 1), 0)
+
+                        if not ( 0 <= input_bird_y <= 1): print(1)
 
 
-                dist_to_next_pipe = 0 # left_side_of_next_pipe - birds_x
-                y_difference_to_next_pipe = top_of_bottom_next_pipe - birds_y[bird_idx]
+                    input_values[bird_idx]  = np.array([input_bird_y,
+                                                        input_1,
+                                                        input_2,
+                                                        input_next_pipe_gap_y])
+                    hidden_values[bird_idx] = np.tanh(input_values[bird_idx] @  hidden_weights[bird_idx] + hidden_biases[bird_idx])
+                    output_value[bird_idx]  = np.tanh(hidden_values[bird_idx] @ output_weights[bird_idx])
+                    output_activated = output_value[bird_idx] >= 0
 
-                input_values[bird_idx]  = np.array([birds_y[bird_idx], bird_vel[bird_idx],
-                                                    dist_to_next_pipe, y_difference_to_next_pipe])
-                hidden_values[bird_idx] = np.tanh(input_values[bird_idx] @  hidden_weights[bird_idx] + hidden_biases[bird_idx])
-                output_value[bird_idx]  = np.tanh(hidden_values[bird_idx] @ output_weights[bird_idx])
-                output_activated = output_value[bird_idx] >= 0
+                    # Pipe collision
+                    if (left_side_of_next_pipe <= birds_x + bird_hitbox_r 
+                        and right_side_of_next_pipe >= birds_x - bird_hitbox_r):
+                            if (birds_y[bird_idx] + bird_hitbox_r >= bottom_of_top_next_pipe
+                                or birds_y[bird_idx] - bird_hitbox_r <= top_of_bottom_next_pipe):
+                                die(bird_idx)
 
+                    # Handle bird-ground collision
+                    if birds_y[bird_idx] - bird_hitbox_r <= ground_y + ground_half_height:
+                        die(bird_idx) # make death
 
-                if (left_side_of_next_pipe <= birds_x + bird_hitbox_r 
-                    and right_side_of_next_pipe >= birds_x - bird_hitbox_r):
-                        if (birds_y[bird_idx] + bird_hitbox_r >= bottom_of_top_next_pipe
-                            or birds_y[bird_idx] - bird_hitbox_r <= top_of_bottom_next_pipe):
-                            die(bird_idx) # make death
+                    # Bird
+                    bird_vel[bird_idx] += g * dt
+                    if output_activated:
+                        bird_vel[bird_idx] = bird_jump_vel
 
-                # Handle bird-ground collision
-                if birds_y[bird_idx] - bird_hitbox_r <= ground_y + ground_half_height:
-                    die(bird_idx) # make death
+                    birds_y[bird_idx] += bird_vel[bird_idx] * dt
 
-                # Bird
-                bird_vel[bird_idx] += g * dt
-                if output_activated:
-                    bird_vel[bird_idx] = bird_jump_vel
+            # Pipes
+            if first_pipe_x + pipe_half_width < left_side_of_background:
+                first_pipe_x = first_pipe_x + pipes_dx
+                pipes_y[0] = pipes_y[1]
+                pipes_y[1] = get_new_pipe_y()
 
-                birds_y[bird_idx] += bird_vel[bird_idx] * dt
+            first_pipe_x += pipes_vel * dt
 
-        # Pipes
-        if first_pipe_x + pipe_half_width < left_side_of_background:
-            first_pipe_x = first_pipe_x + pipes_dx
-            pipes_y[0] = pipes_y[1]
-            pipes_y[1] = get_new_pipe_y()
+            # Ground
+            if ground_x + ground_half_width < left_side_of_background:
+                ground_x += ground_width
 
-        first_pipe_x += pipes_vel * dt
+            ground_x += pipes_vel * dt # ground has same speed as pipes
 
-        # Ground
-        if ground_x + ground_half_width < left_side_of_background:
-            ground_x += ground_width
+        # Check for new generation
+        if alive_count == 0:
+            # Tournament selection???
+            probabilities = fitness / fitness.sum()
+            indexes = np.arange(0, BIRD_COUNT)
 
-        ground_x += pipes_vel * dt # ground has same speed as pipes
-
-    # Check for new generation
-    if alive_count == 0:
-        ground_x = 0
-
-        first_pipe_x = pipes_spawn_x
-        pipes_y = [get_new_pipe_y(), get_new_pipe_y()]
-
-        birds_y = [0 for _ in range(BIRD_COUNT)]
-        bird_vel = [0 for _ in range(BIRD_COUNT)]
-        alive = [True for _ in range(BIRD_COUNT)]
-        alive_count = BIRD_COUNT
-
-        # Tournament selection
-        probabilities = fitness / fitness.sum()
-        indexes = np.arange(0, BIRD_COUNT)
-
-        insert_to_next_gen_idx = 0
-        if elitism:
-            best_one = np.argmax(fitness)
-            input_values[insert_to_next_gen_idx]   = input_values[best_one]
-            hidden_weights[insert_to_next_gen_idx] = hidden_weights[best_one]
-            hidden_biases[insert_to_next_gen_idx]  = hidden_biases[best_one]
-            hidden_values[insert_to_next_gen_idx]  = hidden_values[best_one]
-            output_weights[insert_to_next_gen_idx] = output_weights[best_one]
-            output_value[insert_to_next_gen_idx]   = output_value[best_one]
-            insert_to_next_gen_idx += 1
-
-        while insert_to_next_gen_idx < BIRD_COUNT:
-            rnd = np.random.rand()
-            do_mutation  = rnd <= mutation_propability 
-            do_crossover = rnd <= crossover_propability
-
-            if do_mutation:
-                parent_idx = np.random.choice(indexes, 1, p=probabilities)[0]
-                child_idx = insert_to_next_gen_idx
+            insert_to_next_gen_idx = 0
+            if elitism:
+                best_one = np.argmax(fitness)
+                hidden_weights[insert_to_next_gen_idx] = hidden_weights[best_one]
+                hidden_biases[insert_to_next_gen_idx]  = hidden_biases[best_one]
+                output_weights[insert_to_next_gen_idx] = output_weights[best_one]
+                birds_colors[insert_to_next_gen_idx] = bird_color_red
                 insert_to_next_gen_idx += 1
 
-                input_valuespchild_idx    = np.array([0, 0, 0, 0])
-                hidden_weights[child_idx] = hidden_weights[parent_idx] * np.random.normal(1.0, 0.1, hidden_neuron_count)
-                hidden_biases[child_idx]  = hidden_biases[parent_idx] * np.random.normal(1.0, 0.1, hidden_neuron_count)
-                hidden_values[child_idx]  = np.array([0 for _ in range(hidden_neuron_count)])
-                output_weights[child_idx] = output_weights[parent_idx] * np.random.normal(1.0, 0.1, hidden_neuron_count)
-                output_value[child_idx]   = 0
+            while insert_to_next_gen_idx < BIRD_COUNT:
+                rnd = np.random.rand()
+                do_mutation  = rnd <= mutation_propability 
+                do_crossover = rnd <= crossover_propability
 
-                fitness[child_idx] = 0
+                # mutation
+                if do_mutation:
+                    parent_idx = np.random.choice(indexes, 1, p=probabilities)[0]
+                    child_idx = insert_to_next_gen_idx
+                    insert_to_next_gen_idx += 1
 
-            # Crossovers
-            if do_crossover and insert_to_next_gen_idx < BIRD_COUNT:
-                parent_a_idx = np.random.choice(indexes, 1, p=probabilities)[0]
-                parent_b_idx = np.random.choice(indexes, 1, p=probabilities)[0]
-                child_idx = insert_to_next_gen_idx
-                insert_to_next_gen_idx += 1
+                    hidden_weights[child_idx] = hidden_weights[parent_idx] * np.random.normal(1.0, mutation_magnitude, hidden_neuron_count)
+                    hidden_biases[child_idx]  = hidden_biases[parent_idx] * np.random.normal(1.0, mutation_magnitude, hidden_neuron_count)
+                    output_weights[child_idx] = output_weights[parent_idx] * np.random.normal(1.0, mutation_magnitude, hidden_neuron_count)
 
-                input_valuespchild_idx    = np.array([0, 0, 0, 0])
-                hidden_weights[child_idx] = (hidden_weights[parent_a_idx] + hidden_weights[parent_b_idx]) / 2
-                hidden_biases[child_idx]  = (hidden_biases[parent_a_idx] + hidden_biases[parent_b_idx]) / 2
-                hidden_values[child_idx]  = np.array([0 for _ in range(hidden_neuron_count)])
-                output_weights[child_idx] = (output_weights[parent_a_idx] + output_weights[parent_b_idx]) / 2
-                output_value[child_idx]   = 0
+                    birds_colors[child_idx] = bird_color_blue
 
-                fitness[child_idx] = 0
+                # Crossovers
+                if do_crossover and insert_to_next_gen_idx < BIRD_COUNT:
+                    parent_a_idx = np.random.choice(indexes, 1, p=probabilities)[0]
+                    parent_b_idx = np.random.choice(indexes, 1, p=probabilities)[0]
+                    child_idx = insert_to_next_gen_idx
+                    insert_to_next_gen_idx += 1
 
+                    hidden_weights[child_idx] = (hidden_weights[parent_a_idx] + hidden_weights[parent_b_idx]) / 2
+                    hidden_biases[child_idx]  = (hidden_biases[parent_a_idx] + hidden_biases[parent_b_idx]) / 2
+                    output_weights[child_idx] = (output_weights[parent_a_idx] + output_weights[parent_b_idx]) / 2
 
-        # fitness = np.array([0 for _ in range(BIRD_COUNT)])
+                    birds_colors[child_idx] = bird_color_yellow
 
-        # input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
-        # hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
-        # hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
-        # hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
-        # output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
-        # output_value = [0 for _ in range(BIRD_COUNT)]
+            # Setup scene for next gen
+            ground_x = 0
+
+            first_pipe_x = pipes_spawn_x
+            pipes_y = [get_new_pipe_y(), get_new_pipe_y()]
+
+            for bird_idx in range(BIRD_COUNT):
+                birds_y[bird_idx]  = 0
+                bird_vel[bird_idx] = 0
+                alive[bird_idx]    = True
+                fitness[bird_idx]  = 0
+
+            alive_count = BIRD_COUNT
+
 
 
     ######################################## Draw
@@ -326,13 +359,15 @@ while not stoped:
 
     # Ground
     blit(ground_texture, (ground_x, ground_y))
-    blit(ground_texture, (ground_x + 2*ground_half_width - 0.005, ground_y)) # hacky -0.005 to be sure there's no pixel gap between ground tiles
+    blit(ground_texture, (ground_x + 2*ground_half_width - 0.005, ground_y)) # cheesy -0.005 to be sure there's no pixel gap between ground tiles
 
     # Bird
-    for bird_idx in range(BIRD_COUNT):
+    # NOTE(Pawel Hermansdorfer): Draw reversed so that idx 0 - best from prev gen with elitism (red bird) is drawn at the top
+    for bird_idx in range(BIRD_COUNT-1, 0-1, -1):
         if alive[bird_idx]:
+            bird_color = birds_colors[bird_idx]
             bird_texture_idx = int(frame_start*7 % len(bird_textures))
-            bird_texture = bird_textures[bird_texture_idx]
+            bird_texture = bird_textures[bird_color][bird_texture_idx]
             bird_angle = max(min(bird_vel[bird_idx]*3.4 + 8, 4), -4) * 8
             blit(bird_texture, [birds_x, birds_y[bird_idx]], bird_angle)
 
@@ -344,7 +379,7 @@ while not stoped:
     hidden_nodes_positions = []
     output_nodes_positions = []
 
-    best_bird_idx = np.argmax(fitness)
+    best_bird_idx = np.argmax(fitness) # if couple has the same, best one with elitism is best from prev gen pog!
     input_node_count = input_values[best_bird_idx].shape[0]
     input_nodes_x = ((window_dim[0] - game_dim[0]) / 4) + game_dim[0]
     input_node_r = 20
@@ -354,12 +389,12 @@ while not stoped:
         input_nodes_positions.append((input_nodes_x, y))
         y += 2*input_node_r + space_between_input_nodes
 
-    hidden_noe_x = ((window_dim[0] - game_dim[0]) / 2) + game_dim[0]
+    hidden_node_x = ((window_dim[0] - game_dim[0]) / 2) + game_dim[0]
     space_between_hidden_nodes = 60
     hidden_node_r = 20
     y = game_dim[1]/2 - (hidden_neuron_count - 1)*(2*hidden_node_r + space_between_hidden_nodes)*0.5
     for i in range(hidden_neuron_count):
-        hidden_nodes_positions.append((hidden_noe_x, y))
+        hidden_nodes_positions.append((hidden_node_x, y))
         y += 2*hidden_node_r + space_between_hidden_nodes
 
     output_x = (3*(window_dim[0] - game_dim[0])/4) + game_dim[0]
