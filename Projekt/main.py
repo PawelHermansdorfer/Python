@@ -1,6 +1,5 @@
 # TODO(Pawel Hermansdorfer): HUge fitnes boost for pasing pipe
 # TODO(Pawel Hermansdorfer): Fitness decrease when hit ground
-# TODO(Pawel Hermansdorfer): Commit genocide button(next gen)
 # TODO(Pawel Hermansdorfer): punish going over the top of the screen
 # https://www.pygame.org/wiki/MatplotlibPygame
 
@@ -12,12 +11,19 @@ import numpy as np
 import pygame
 pygame.init()
 
-########################################
-# User PARAMS
-game_speed_factor = 1
+from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
 
+import imgui
+from imgui.integrations.pygame import PygameRenderer
+
+########################################
+# Setup params
 HIDDEN_NEURON_COUNT = 5
 normalize_inputs = False
+
+punish_for_hitting_ground = False
 
 ELITISM = True
 mutation_propability = 0.5
@@ -25,17 +31,28 @@ mutation_magnitude = 0.5
 
 crossover_propability = 0.5
 
-######################################## Load data
-fps = 60
-s_per_frame = 1/fps
+# Settings
+game_speed_factor = 1
+max_fps = 30
+max_fps_options = [30, 60, 120, 144, 164]
+max_fps_option_idx = 0
 
-window = pygame.display.set_mode((0,0), pygame.DOUBLEBUF)
+######################################## Load data
+window = pygame.display.set_mode((0,0), pygame.DOUBLEBUF | pygame.OPENGL)
 window_dim = window.get_size()
+window_surface = pygame.Surface(window_dim) 
 
 game_scale_factor = window_dim[1]/512
 game_scale = (game_scale_factor, game_scale_factor)
 game_dim = (288*game_scale[0], 512*game_scale[1])
 game_surface = pygame.Surface(game_dim)
+
+# Imgui init
+imgui.create_context()
+impl = PygameRenderer()
+io = imgui.get_io()
+io.display_size = window_dim
+imgui.set_next_window_size(500, 300)
 
 # Font
 debug_font = pygame.font.Font(None, 32) 
@@ -124,10 +141,15 @@ alive = [True for _ in range(BIRD_COUNT)]
 alive_count = BIRD_COUNT
 def die(idx):
     global alive_count
-    alive[idx] = False
-    alive_count -= 1
+    if alive[bird_idx]:
+        alive[idx] = False
+        alive_count -= 1
 
 fitness = np.array([0 for _ in range(BIRD_COUNT)])
+
+current_generation_idx = 0
+best_fitness_this_generation = 0
+best_fitness_overall = 0
 
 input_count = 4
 hidden_neuron_count = HIDDEN_NEURON_COUNT
@@ -168,20 +190,17 @@ while not stoped:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             stoped = True
-        elif event.type == pygame.VIDEORESIZE:
-            window_dim = window.get_size()
-            world_to_screen_offset = [window_dim[0]/2, window_dim[1]/2]
-
-            game_scale_factor = window_dim[1]/512
-            game_scale = (game_scale_factor, game_scale_factor)
-            game_dim = (288*game_scale[0], 512*game_scale[1])
-            game_surface = pygame.Surface(game_dim)
         elif event.type == pygame.KEYDOWN:
             match event.key:
                 case pygame.K_q:
                     stoped = True
                 case pygame.K_SPACE:
-                    space_pressed = True
+                    if game_speed_factor == 0:
+                        game_speed_factor = 1
+                    else:
+                        game_speed_factor = 0
+
+        impl.process_event(event)
 
     ######################################## Update
     if frame_time != 0:
@@ -191,6 +210,8 @@ while not stoped:
             for bird_idx in range(BIRD_COUNT):
                 if alive[bird_idx]:
                     fitness[bird_idx] += 1
+                    if best_fitness_this_generation < fitness[bird_idx]:
+                        best_fitness_this_generation = fitness[bird_idx]
 
                     left_side_of_first_pipe   = first_pipe_x - pipe_half_width
                     right_side_of_first_pipe  = first_pipe_x + pipe_half_width
@@ -249,6 +270,8 @@ while not stoped:
                     # Handle bird-ground collision
                     if birds_y[bird_idx] - bird_hitbox_r <= ground_y + ground_half_height:
                         die(bird_idx) # make death
+                        if punish_for_hitting_ground:
+                            fitness[bird_idx] = 0
 
                     # Bird
                     bird_vel[bird_idx] += g * dt
@@ -275,6 +298,7 @@ while not stoped:
         if alive_count == 0:
             # Tournament selection???
             probabilities = fitness / fitness.sum()
+            probabilities = np.nan_to_num(probabilities, nan=0)
             indexes = np.arange(0, BIRD_COUNT)
 
             insert_to_next_gen_idx = 0
@@ -316,6 +340,11 @@ while not stoped:
 
                     birds_colors[child_idx] = bird_color_yellow
 
+            current_generation_idx += 1
+            if best_fitness_overall < best_fitness_this_generation:
+                best_fitness_overall = best_fitness_this_generation
+            best_fitness_this_generation = 0
+
             # Setup scene for next gen
             ground_x = 0
 
@@ -331,7 +360,7 @@ while not stoped:
             alive_count = BIRD_COUNT
 
     ######################################## Draw
-    window.fill((33,33,33))
+    window_surface.fill((33,33,33))
     game_surface.fill((33,33,33))
 
     def blit(texture, pos, angle=0):
@@ -367,7 +396,7 @@ while not stoped:
             blit(bird_texture, [birds_x, birds_y[bird_idx]], bird_angle)
 
     # Game surface
-    window.blit(game_surface, (0, 0))
+    window_surface.blit(game_surface, (0, 0))
 
     # Neural network
     input_nodes_positions  = []
@@ -406,37 +435,96 @@ while not stoped:
         for j, hidden_node_pos in enumerate(hidden_nodes_positions):
             weight_color = get_node_or_weight_color(hidden_weights[best_bird_idx][i, j])
             weight_width = int(np.ceil(np.abs(hidden_weights[best_bird_idx][i, j]) * 1.5 + 1))
-            pygame.draw.line(window, weight_color, input_node_pos, hidden_node_pos, width=weight_width)
+            pygame.draw.line(window_surface, weight_color, input_node_pos, hidden_node_pos, width=weight_width)
         input_color = get_node_or_weight_color(input_values[best_bird_idx][i])
-        pygame.draw.circle(window, input_color, input_node_pos, radius=hidden_node_r)
-        # input_value_text = debug_font.render(f'{}', True, (255,255,255)
-        # window.blit(), (0, y))
+        pygame.draw.circle(window_surface, input_color, input_node_pos, radius=hidden_node_r)
 
     for i, hidden_node_pos in enumerate(hidden_nodes_positions):
         weight_color = get_node_or_weight_color(output_weights[best_bird_idx][i])
         weight_width = int(np.ceil(np.abs(output_weights[best_bird_idx][i]) * 1.5 + 1))
-        pygame.draw.line(window, weight_color, hidden_node_pos, output_node_pos, width=weight_width)
+        pygame.draw.line(window_surface, weight_color, hidden_node_pos, output_node_pos, width=weight_width)
         hidden_color = get_node_or_weight_color(hidden_values[best_bird_idx][i])
-        pygame.draw.circle(window, hidden_color, hidden_node_pos, radius=hidden_node_r)
+        pygame.draw.circle(window_surface, hidden_color, hidden_node_pos, radius=hidden_node_r)
 
     output_color = get_node_or_weight_color(output_value[best_bird_idx])
-    pygame.draw.circle(window, output_color, output_node_pos, radius=hidden_node_r)
+    pygame.draw.circle(window_surface, output_color, output_node_pos, radius=hidden_node_r)
 
     # Telemetry 
     telemetry = [
             f'Frame time:  {frame_time*1000:.1f}ms',
             f'FPS: {(1/frame_time) if frame_time != 0 else 0:.0f}',
-            f'Alive: {alive_count}',
     ]
     y = 0
     for line in telemetry:
-        window.blit(debug_font.render(line, True, (255,255,255)), (0, y))
+        window_surface.blit(debug_font.render(line, True, (255,255,255)), (0, y))
         y += 30
+
+
+    # Draw to window
+    # window.blit(window_surface, (0, 0)) # Withouth opengl backend
+    texture_data = pygame.image.tostring(window_surface, "RGBA", 1)
+    width, height = window_surface.get_width(), window_surface.get_height()
+    
+    texture_id = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, texture_id)
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data)
+
+    glEnable(GL_TEXTURE_2D)
+
+    glBegin(GL_QUADS)
+    glTexCoord2f(0.0, 0.0)
+    glVertex2f(-1.0, -1.0)  # Bottom-left
+    glTexCoord2f(1.0, 0.0)
+    glVertex2f(1.0, -1.0)   # Bottom-right
+    glTexCoord2f(1.0, 1.0)
+    glVertex2f(1.0, 1.0)    # Top-right
+    glTexCoord2f(0.0, 1.0)
+    glVertex2f(-1.0, 1.0)   # Top-left
+    glEnd()
+
+    glDeleteTextures([texture_id])
+
+    # UI
+    imgui.new_frame()
+
+    imgui.begin("Settings & Stats")
+
+    imgui.text(f'Generation: {current_generation_idx}')
+    imgui.text(f'Birds alive: {alive_count}')
+    imgui.text(f'Best fitness this generation: {best_fitness_this_generation}')
+    imgui.text(f'Best fitness overall: {best_fitness_overall}')
+
+    imgui.separator()
+
+    _, game_speed_factor = imgui.slider_int("Game speed", game_speed_factor, 0, 15)
+    max_fps_change, max_fps_option_idx = imgui.combo("Max FPS", max_fps_option_idx, ['30', '60', '120', '144', '165'])
+    if max_fps_change:
+        max_fps = max_fps_options[max_fps_option_idx]
+
+    if imgui.button('Skip generation'):
+        for bird_idx in range(BIRD_COUNT):
+            die(bird_idx)
+
+    if imgui.button('QUIT'):
+        stoped = True
+    imgui.end()
+
+    imgui.render()
+    impl.render(imgui.get_draw_data())
+
 
     pygame.display.flip()
 
-
     ######################################## Frame rate
+    fps = max_fps
+    s_per_frame = 1/fps
+
     elapsed = time.perf_counter() - frame_start
     if elapsed < s_per_frame:
         time.sleep(s_per_frame - elapsed)
