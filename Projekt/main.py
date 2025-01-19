@@ -1,4 +1,4 @@
-# TODO(Pawel Hermansdorfer): Normalize inputs
+# TODO(Pawel Hermansdorfer): Wieghts * <0.95, 1.05> if wieght is 0 then it won't change
 # TODO(Pawel Hermansdorfer): Fitness boost for passing pipe
 # TODO(Pawel Hermansdorfer): Draw score(passed pipes)
 
@@ -247,10 +247,11 @@ while not stoped:
                 case pygame.K_q:
                     stoped = True
                 case pygame.K_SPACE:
-                    if game_speed_factor == 0:
-                        game_speed_factor = 1
-                    else:
-                        game_speed_factor = 0
+                    if GAME_STARTED:
+                        if game_speed_factor == 0:
+                            game_speed_factor = 1
+                        else:
+                            game_speed_factor = 0
 
         impl.process_event(event)
 
@@ -259,33 +260,32 @@ while not stoped:
         dt = frame_time
 
         for _ in range(game_speed_factor):
+            left_side_of_first_pipe   = first_pipe_x - pipe_half_width
+            right_side_of_first_pipe  = first_pipe_x + pipe_half_width
+            bottom_of_top_first_pipe  = pipes_y[0] - pipe_half_height
+            top_of_bottom_first_pipe  = pipes_y[0] - gap_between_pipes + pipe_half_height
+            left_side_of_second_pipe   = first_pipe_x + pipes_dx - pipe_half_width
+            right_side_of_second_pipe  = first_pipe_x + pipes_dx + pipe_half_width
+            bottom_of_top_second_pipe  = pipes_y[1] - pipe_half_height
+            top_of_bottom_second_pipe  = pipes_y[1] - gap_between_pipes + pipe_half_height
+
+            left_side_of_next_pipe   = 0
+            right_side_of_next_pipe  = 0
+            bottom_of_top_next_pipe  = 0
+            top_of_bottom_next_pipe  = 0
+            if right_side_of_first_pipe >= birds_x - bird_hitbox_r:
+                left_side_of_next_pipe   = left_side_of_first_pipe
+                right_side_of_next_pipe  = right_side_of_first_pipe
+                bottom_of_top_next_pipe  = bottom_of_top_first_pipe
+                top_of_bottom_next_pipe  = top_of_bottom_first_pipe
+            else:
+                left_side_of_next_pipe   = left_side_of_second_pipe
+                right_side_of_next_pipe  = right_side_of_second_pipe
+                bottom_of_top_next_pipe  = bottom_of_top_second_pipe
+                top_of_bottom_next_pipe  = top_of_bottom_second_pipe
 
             for bird_idx in range(BIRD_COUNT):
                 if alive[bird_idx]:
-
-                    left_side_of_first_pipe   = first_pipe_x - pipe_half_width
-                    right_side_of_first_pipe  = first_pipe_x + pipe_half_width
-                    bottom_of_top_first_pipe  = pipes_y[0] - pipe_half_height
-                    top_of_bottom_first_pipe  = pipes_y[0] - gap_between_pipes + pipe_half_height
-                    left_side_of_second_pipe   = first_pipe_x + pipes_dx - pipe_half_width
-                    right_side_of_second_pipe  = first_pipe_x + pipes_dx + pipe_half_width
-                    bottom_of_top_second_pipe  = pipes_y[1] - pipe_half_height
-                    top_of_bottom_second_pipe  = pipes_y[1] - gap_between_pipes + pipe_half_height
-
-                    left_side_of_next_pipe   = 0
-                    right_side_of_next_pipe  = 0
-                    bottom_of_top_next_pipe  = 0
-                    top_of_bottom_next_pipe  = 0
-                    if right_side_of_first_pipe >= birds_x - bird_hitbox_r:
-                        left_side_of_next_pipe   = left_side_of_first_pipe
-                        right_side_of_next_pipe  = right_side_of_first_pipe
-                        bottom_of_top_next_pipe  = bottom_of_top_first_pipe
-                        top_of_bottom_next_pipe  = top_of_bottom_first_pipe
-                    else:
-                        left_side_of_next_pipe   = left_side_of_second_pipe
-                        right_side_of_next_pipe  = right_side_of_second_pipe
-                        bottom_of_top_next_pipe  = bottom_of_top_second_pipe
-                        top_of_bottom_next_pipe  = top_of_bottom_second_pipe
 
                     if punish_flying_above_screen:
                         if birds_y[bird_idx] <= background_half_height:
