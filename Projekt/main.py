@@ -40,10 +40,12 @@ selected_inputs[1] = [all_possible_inputs[4], 4]
 
 nn_inputs_order = []
 
-input_count = 4
+input_count = 2
 hidden_neuron_count = 5
 
 normalize_inputs = False
+
+BIRD_COUNT = 50
 
 mutation_propability = 0.5
 mutation_magnitude = 0.5
@@ -157,35 +159,34 @@ bird_half_height = bird_height/2
 
 bird_hitbox_r = bird_half_width # circle
 
-BIRD_COUNT = 50
-birds_y = [0 for _ in range(BIRD_COUNT)]
+birds_y = []
 birds_x = -0.7
-bird_vel = [0 for _ in range(BIRD_COUNT)]
+bird_vel = []
 bird_jump_vel = 2.4
 g = -9.1
 
-birds_colors = [np.random.choice([bird_color_yellow, bird_color_blue, bird_color_red]) for _ in range(BIRD_COUNT)]
+birds_colors = []
 
-alive = [True for _ in range(BIRD_COUNT)]
-alive_count = BIRD_COUNT
+alive = []
+alive_count = []
 def die(idx):
     global alive_count
     if alive[bird_idx]:
         alive[idx] = False
         alive_count -= 1
 
-fitness = np.array([0 for _ in range(BIRD_COUNT)])
+fitness = []
 
 current_generation_idx = 0
 best_fitness_this_generation = 0
 best_fitness_overall = 0
 
-input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
-hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
-hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
-hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
-output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
-output_value = [0 for _ in range(BIRD_COUNT)]
+input_values   = []
+hidden_weights = []
+hidden_biases  = []
+hidden_values  = []
+output_weights = []
+output_value   = []
 
 # Pipes
 pipe_width  = pipe_texture.get_size()[0] * texture_to_world_scale
@@ -224,9 +225,6 @@ def get_node_or_weight_color(v):
     r = min(max(v, -1), 0) * -255
     g = min(max(v, 0), 1) * 255
     return (r, g, 0)
-
-def generate_first_population():
-    pass
 
 ######################################## Game loop
 stoped = False
@@ -292,25 +290,27 @@ while not stoped:
                         bottom_of_top_next_pipe  = bottom_of_top_second_pipe
                         top_of_bottom_next_pipe  = top_of_bottom_second_pipe
 
-                    input_bird_y = birds_y[bird_idx]
-                    input_1 = 0 # bird_vel[bird_idx]
-                    input_2 = 0 # left_side_of_next_pipe
-                    input_next_pipe_gap_y = top_of_bottom_next_pipe
+                    inputs = [0 for _ in range(input_count)]
+                    for input_idx in range(len(inputs)):
+                        value = 0
+                        match nn_inputs_order[input_idx]:
+                            case 'Bird\'s position on Y axis':
+                                value = birds_y[bird_idx]
+                            case 'Bird\'s position on X axis':
+                                value = birds_x
+                            case 'Bird\'s velocity on Y axis':
+                                value = bird_vel[bird_idx]
+                            case 'Next pipe\'s position on X axis':
+                                value = left_side_of_next_pipe
+                            case 'Next gaps\'s position on Y axis':
+                                value = top_of_bottom_next_pipe
+                            case 'Bird\'s distance to next pipe':
+                                value = birds_x -left_side_of_next_pipe
+                            case 'Difference between bird and next gap on Y axis':
+                                value = birds_y[bird_idx] - top_of_bottom_next_pipe
+                        inputs[input_idx] = value
 
-                    if normalize_inputs:
-                        input_bird_y = (input_bird_y + background_half_height) / background_height
-                        input_bird_y = max(min(input_bird_y, 1), 0)
-
-                        input_next_pipe_gap_y = (top_of_bottom_next_pipe + background_half_height) / background_height
-                        input_next_pipe_gap_y = max(min(input_next_pipe_gap_y, 1), 0)
-
-                        if not ( 0 <= input_bird_y <= 1): print(1)
-
-
-                    input_values[bird_idx]  = np.array([input_bird_y,
-                                                        input_1,
-                                                        input_2,
-                                                        input_next_pipe_gap_y])
+                    input_values[bird_idx]  = np.array(inputs)
                     hidden_values[bird_idx] = np.tanh(input_values[bird_idx] @  hidden_weights[bird_idx] + hidden_biases[bird_idx])
                     output_value[bird_idx]  = np.tanh(hidden_values[bird_idx] @ output_weights[bird_idx])
                     output_activated = output_value[bird_idx] >= 0
@@ -620,8 +620,8 @@ while not stoped:
         _, mutation_magnitude = imgui.slider_float("Mutation magnitude", mutation_magnitude, 0, 2)
         _, crossover_propability = imgui.slider_float("Crossover propablility", crossover_propability, 0, 1)
 
-        _, punish_hitting_ground = imgui.checkbox('Punish for hittin ground', punish_hitting_ground)
-        _, punish_flying_above_screen = imgui.checkbox('Punish for flying above screen', punish_flying_above_screen)
+        _, punish_hitting_ground = imgui.checkbox('(Experimental) Punish for hittin ground', punish_hitting_ground)
+        _, punish_flying_above_screen = imgui.checkbox('(Experimental) Punish for flying above screen', punish_flying_above_screen)
 
         if imgui.button('START SIMULATION'):
             failed = False
@@ -634,10 +634,30 @@ while not stoped:
 
             if not failed:
                 GAME_STARTED = True
+
+                input_count = 0
                 for selected_input in selected_inputs:
                     if selected_input[1] == 0: break
-                    else: nn_inputs_order.append(selected_input[0])
-                generate_first_population()
+                    else:
+                        input_count += 1
+                        nn_inputs_order.append(selected_input[0])
+
+                # Init population
+                birds_y = [0 for _ in range(BIRD_COUNT)]
+                bird_vel = [0 for _ in range(BIRD_COUNT)]
+                birds_colors = [np.random.choice([bird_color_yellow, bird_color_blue, bird_color_red]) for _ in range(BIRD_COUNT)]
+                alive = [True for _ in range(BIRD_COUNT)]
+                alive_count = BIRD_COUNT
+                
+                fitness = np.array([0 for _ in range(BIRD_COUNT)])
+                
+                input_values  = [np.array([0, 0, 0, 0]) for _ in range(BIRD_COUNT)]
+                hidden_weights = [np.random.normal(size=(input_count, hidden_neuron_count)) for _ in range(BIRD_COUNT)]
+                hidden_biases  = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+                hidden_values = [np.array([0 for _ in range(hidden_neuron_count)]) for __ in range(BIRD_COUNT)]
+                output_weights = [np.random.normal(size=hidden_neuron_count) for _ in range(BIRD_COUNT)]
+                output_value = [0 for _ in range(BIRD_COUNT)]
+
 
         imgui.indent()
         if failed_no_inputs:
