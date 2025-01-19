@@ -93,27 +93,27 @@ nn_nodes_font = pygame.font.Font(None, 18)
 
 # Assets from https://github.com/samuelcust/flappy-bird-assets
 dir_path = os.path.dirname(os.path.realpath(__file__))
-pipe_texture   = pygame.image.load(dir_path + "\\res\\pipe-green.png")
-bg_texture     = pygame.image.load(dir_path + "\\res\\background-day.png")
-ground_texture = pygame.image.load(dir_path + "\\res\\base.png")
+pipe_texture   = pygame.image.load(dir_path + "/res/pipe-green.png")
+bg_texture     = pygame.image.load(dir_path + "/res/background-day.png")
+ground_texture = pygame.image.load(dir_path + "/res/base.png")
 
 yellow_bird_textures  = [
-         pygame.image.load(dir_path + "\\res\\yellowbird-upflap.png"),
-         pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
-         pygame.image.load(dir_path + "\\res\\yellowbird-downflap.png"),
-         pygame.image.load(dir_path + "\\res\\yellowbird-midflap.png"),
+         pygame.image.load(dir_path + "/res/yellowbird-upflap.png"),
+         pygame.image.load(dir_path + "/res/yellowbird-midflap.png"),
+         pygame.image.load(dir_path + "/res/yellowbird-downflap.png"),
+         pygame.image.load(dir_path + "/res/yellowbird-midflap.png"),
 ]
 blue_bird_textures = [
-         pygame.image.load(dir_path + "\\res\\bluebird-upflap.png"),
-         pygame.image.load(dir_path + "\\res\\bluebird-midflap.png"),
-         pygame.image.load(dir_path + "\\res\\bluebird-downflap.png"),
-         pygame.image.load(dir_path + "\\res\\bluebird-midflap.png"),
+         pygame.image.load(dir_path + "/res/bluebird-upflap.png"),
+         pygame.image.load(dir_path + "/res/bluebird-midflap.png"),
+         pygame.image.load(dir_path + "/res/bluebird-downflap.png"),
+         pygame.image.load(dir_path + "/res/bluebird-midflap.png"),
 ]
 red_bird_textures = [
-         pygame.image.load(dir_path + "\\res\\redbird-upflap.png"),
-         pygame.image.load(dir_path + "\\res\\redbird-midflap.png"),
-         pygame.image.load(dir_path + "\\res\\redbird-downflap.png"),
-         pygame.image.load(dir_path + "\\res\\redbird-midflap.png"),
+         pygame.image.load(dir_path + "/res/redbird-upflap.png"),
+         pygame.image.load(dir_path + "/res/redbird-midflap.png"),
+         pygame.image.load(dir_path + "/res/redbird-downflap.png"),
+         pygame.image.load(dir_path + "/res/redbird-midflap.png"),
 ]
 bird_textures = [yellow_bird_textures, blue_bird_textures, red_bird_textures]
 bird_color_yellow = 0
