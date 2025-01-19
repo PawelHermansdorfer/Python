@@ -1,6 +1,6 @@
-# TODO(Pawel Hermansdorfer): Fitness decrease when hit ground
-# TODO(Pawel Hermansdorfer): punish going over the top of the screen
-# https://www.pygame.org/wiki/MatplotlibPygame
+# TODO(Pawel Hermansdorfer): Normalize inputs
+# TODO(Pawel Hermansdorfer): Fitness boost for passing pipe
+# TODO(Pawel Hermansdorfer): Draw score(passed pipes)
 
 import time
 import os
@@ -39,6 +39,7 @@ selected_inputs[0] = [all_possible_inputs[1], 1]
 selected_inputs[1] = [all_possible_inputs[4], 4]
 
 nn_inputs_order = []
+nn_inputs_order_text = []
 
 input_count = 2
 hidden_neuron_count = 5
@@ -87,6 +88,8 @@ imgui.set_next_window_size(500, 300)
 
 # Font
 debug_font = pygame.font.Font(None, 32) 
+nn_inputs_font = pygame.font.Font(None, 18) 
+nn_nodes_font = pygame.font.Font(None, 18) 
 
 # Assets from https://github.com/samuelcust/flappy-bird-assets
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -226,6 +229,9 @@ def get_node_or_weight_color(v):
     g = min(max(v, 0), 1) * 255
     return (r, g, 0)
 
+def limit(x, a, b):
+    return min(max(x, a), b)
+
 ######################################## Game loop
 stoped = False
 while not stoped:
@@ -253,18 +259,9 @@ while not stoped:
         dt = frame_time
 
         for _ in range(game_speed_factor):
+
             for bird_idx in range(BIRD_COUNT):
                 if alive[bird_idx]:
-
-                    if punish_flying_above_screen:
-                        if birds_y[bird_idx] <= background_half_height:
-                            fitness[bird_idx] += 1
-                    else:
-                        fitness[bird_idx] += 1
-
-
-                    if best_fitness_this_generation < fitness[bird_idx]:
-                        best_fitness_this_generation = fitness[bird_idx]
 
                     left_side_of_first_pipe   = first_pipe_x - pipe_half_width
                     right_side_of_first_pipe  = first_pipe_x + pipe_half_width
@@ -290,24 +287,47 @@ while not stoped:
                         bottom_of_top_next_pipe  = bottom_of_top_second_pipe
                         top_of_bottom_next_pipe  = top_of_bottom_second_pipe
 
+                    if punish_flying_above_screen:
+                        if birds_y[bird_idx] <= background_half_height:
+                            fitness[bird_idx] += 1
+                    else:
+                        fitness[bird_idx] += 1
+
+                    if best_fitness_this_generation < fitness[bird_idx]:
+                        best_fitness_this_generation = fitness[bird_idx]
+
                     inputs = [0 for _ in range(input_count)]
                     for input_idx in range(len(inputs)):
                         value = 0
                         match nn_inputs_order[input_idx]:
                             case 'Bird\'s position on Y axis':
                                 value = birds_y[bird_idx]
+                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+
                             case 'Bird\'s position on X axis':
                                 value = birds_x
+                                if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+
                             case 'Bird\'s velocity on Y axis':
                                 value = bird_vel[bird_idx]
+                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+
                             case 'Next pipe\'s position on X axis':
                                 value = left_side_of_next_pipe
+                                if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+
                             case 'Next gaps\'s position on Y axis':
                                 value = top_of_bottom_next_pipe
+                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+
                             case 'Bird\'s distance to next pipe':
                                 value = birds_x -left_side_of_next_pipe
+                                if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+
                             case 'Difference between bird and next gap on Y axis':
                                 value = birds_y[bird_idx] - top_of_bottom_next_pipe
+                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+
                         inputs[input_idx] = value
 
                     input_values[bird_idx]  = np.array(inputs)
@@ -499,6 +519,16 @@ while not stoped:
             input_color = get_node_or_weight_color(input_values[best_bird_idx][i])
             pygame.draw.circle(window_surface, input_color, input_node_pos, radius=hidden_node_r)
 
+            label_dim = nn_inputs_order_text[i].get_size()
+            label_pos = (input_node_pos[0] - label_dim[0] - hidden_node_r*2, input_node_pos[1] - label_dim[1]//2)
+            window_surface.blit(nn_inputs_order_text[i], label_pos)
+
+            value_text = nn_nodes_font.render(f'{input_values[best_bird_idx][i]:.2f}', True, (255, 255, 255))
+            value_text_dim = value_text.get_size()
+            value_text_pos = (input_node_pos[0] - value_text_dim[0]//2, input_node_pos[1] - value_text_dim[1]//2)
+            window_surface.blit(value_text, value_text_pos)
+            
+
         for i, hidden_node_pos in enumerate(hidden_nodes_positions):
             weight_color = get_node_or_weight_color(output_weights[best_bird_idx][i])
             weight_width = int(np.ceil(np.abs(output_weights[best_bird_idx][i]) * 1.5 + 1))
@@ -506,8 +536,18 @@ while not stoped:
             hidden_color = get_node_or_weight_color(hidden_values[best_bird_idx][i])
             pygame.draw.circle(window_surface, hidden_color, hidden_node_pos, radius=hidden_node_r)
 
+            value_text = nn_nodes_font.render(f'{hidden_values[best_bird_idx][i]:.2f}', True, (255, 255, 255))
+            value_text_dim = value_text.get_size()
+            value_text_pos = (hidden_node_pos[0] - value_text_dim[0]//2, hidden_node_pos[1] - value_text_dim[1]//2)
+            window_surface.blit(value_text, value_text_pos)
+
         output_color = get_node_or_weight_color(output_value[best_bird_idx])
         pygame.draw.circle(window_surface, output_color, output_node_pos, radius=hidden_node_r)
+
+        value_text = nn_nodes_font.render(f'{output_value[best_bird_idx]:.2f}', True, (255, 255, 255))
+        value_text_dim = value_text.get_size()
+        value_text_pos = (output_node_pos[0] - value_text_dim[0]//2, output_node_pos[1] - value_text_dim[1]//2)
+        window_surface.blit(value_text, value_text_pos)
 
         # Telemetry 
         if display_fps:
@@ -641,6 +681,7 @@ while not stoped:
                     else:
                         input_count += 1
                         nn_inputs_order.append(selected_input[0])
+                        nn_inputs_order_text.append(nn_inputs_font.render(selected_input[0], True, (255, 255, 255)))
 
                 # Init population
                 birds_y = [0 for _ in range(BIRD_COUNT)]
