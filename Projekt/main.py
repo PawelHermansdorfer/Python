@@ -2,6 +2,7 @@
 # TODO(Pawel Hermansdorfer): Fitness boost for passing pipe
 # TODO(Pawel Hermansdorfer): Draw score(passed pipes)
 
+# TODO(Pawel Hermansdorfer): mutacje gauss + semgo gaussa (metaeolucja)
 import time
 import os
 
