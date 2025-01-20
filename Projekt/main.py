@@ -42,7 +42,7 @@ nn_inputs_order = []
 nn_inputs_order_text = []
 
 input_count = 2
-hidden_neuron_count = 5
+hidden_neuron_count = 3
 
 normalize_inputs = False
 
@@ -53,8 +53,18 @@ mutation_magnitude = 0.5
 crossover_propability = 0.5
 
 elitism = True
-punish_hitting_ground = False
-punish_flying_above_screen = False
+
+use_reward_point_for_time_survived = True
+reward_points_for_time_survived    = 1
+
+use_reward_points_for_passing_pipe = True
+reward_points_for_passing_pipe    = 1000
+
+use_punish_points_hitting_ground = True
+punish_points_hitting_ground      = -1000
+
+use_punish_points_flying_above_screen = True
+punish_points_flying_above_screen = -1
 
 # Settings
 game_speed_factor = 1
@@ -92,6 +102,8 @@ nn_inputs_font = pygame.font.Font(None, 18)
 nn_nodes_font = pygame.font.Font(None, 18) 
 
 # Assets from https://github.com/samuelcust/flappy-bird-assets
+texture_to_world_scale = 1/120
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 pipe_texture   = pygame.image.load(dir_path + "/res/pipe-green.png")
 bg_texture     = pygame.image.load(dir_path + "/res/background-day.png")
@@ -121,7 +133,9 @@ bird_color_blue = 1
 bird_color_red = 2
 # NOTE(Pawel Hermansdorfer): 1st gen random, later -> RED - elitism | BLUE - crossover | yellow - mutation
 
-texture_to_world_scale = 1/120
+score_numbers_textures = [pygame.image.load(dir_path + f"/res/{i}.png") for i in range(10)]
+score_numbers_widths = score_numbers_textures[0].get_size()[0] * texture_to_world_scale
+score_numbers_heights = 36
 
 
 ######################################## Init variables
@@ -136,6 +150,9 @@ def world_to_screen(pos):
     result =  [round(pos[0] * world_to_screen_scale[0] + world_to_screen_offset[0]),
                round(pos[1] * world_to_screen_scale[1] + world_to_screen_offset[1])]
     return result
+
+passed_pipe = False
+score = 0
 
 # Background
 background_width  = bg_texture.get_size()[0] * texture_to_world_scale
@@ -274,24 +291,36 @@ while not stoped:
             bottom_of_top_next_pipe  = 0
             top_of_bottom_next_pipe  = 0
             if right_side_of_first_pipe >= birds_x - bird_hitbox_r:
-                left_side_of_next_pipe   = left_side_of_first_pipe
-                right_side_of_next_pipe  = right_side_of_first_pipe
-                bottom_of_top_next_pipe  = bottom_of_top_first_pipe
-                top_of_bottom_next_pipe  = top_of_bottom_first_pipe
+                left_side_of_next_pipe  = left_side_of_first_pipe
+                right_side_of_next_pipe = right_side_of_first_pipe
+                bottom_of_top_next_pipe = bottom_of_top_first_pipe
+                top_of_bottom_next_pipe = top_of_bottom_first_pipe
             else:
-                left_side_of_next_pipe   = left_side_of_second_pipe
-                right_side_of_next_pipe  = right_side_of_second_pipe
-                bottom_of_top_next_pipe  = bottom_of_top_second_pipe
-                top_of_bottom_next_pipe  = top_of_bottom_second_pipe
+                left_side_of_next_pipe  = left_side_of_second_pipe
+                right_side_of_next_pipe = right_side_of_second_pipe
+                bottom_of_top_next_pipe = bottom_of_top_second_pipe
+                top_of_bottom_next_pipe = top_of_bottom_second_pipe
+
+            # pipe_score_point =(left_side_of_next_pipe + right_side_of_next_pipe) / 2
+            pipe_score_point = right_side_of_next_pipe
+            if not passed_pipe and pipe_score_point < birds_x:
+                passed_pipe = True
+                score += 1
+                if use_reward_points_for_passing_pipe:
+                    for bird_idx in range(BIRD_COUNT):
+                        fitness[bird_idx] += reward_points_for_passing_pipe
+            if passed_pipe and pipe_score_point > birds_x:
+                passed_pipe = False
 
             for bird_idx in range(BIRD_COUNT):
                 if alive[bird_idx]:
 
-                    if punish_flying_above_screen:
-                        if birds_y[bird_idx] <= background_half_height:
-                            fitness[bird_idx] += 1
-                    else:
-                        fitness[bird_idx] += 1
+                    if use_punish_points_flying_above_screen:
+                        if birds_y[bird_idx] >= background_half_height:
+                            fitness[bird_idx] += punish_points_flying_above_screen
+
+                    if use_reward_point_for_time_survived:
+                        fitness[bird_idx] += reward_points_for_time_survived
 
                     if best_fitness_this_generation < fitness[bird_idx]:
                         best_fitness_this_generation = fitness[bird_idx]
@@ -345,8 +374,8 @@ while not stoped:
                     # Handle bird-ground collision
                     if birds_y[bird_idx] - bird_hitbox_r <= ground_y + ground_half_height:
                         die(bird_idx) # make death
-                        if punish_hitting_ground:
-                            fitness[bird_idx] = 0
+                        if use_punish_points_hitting_ground:
+                            fitness[bird_idx] += punish_points_hitting_ground
 
                     # Bird
                     bird_vel[bird_idx] += g * dt
@@ -372,6 +401,14 @@ while not stoped:
         # Check for new generation
         if alive_count == 0:
             # Tournament selection???
+            fitness_sum = 0
+            for i in range(len(fitness)):
+                fitness[i] = max(fitness[i], 0)
+                fitness_sum += fitness[i]
+            if fitness_sum == 0: 
+                for i in range(len(fitness)):
+                    fitness[i] = 1
+
             probabilities = fitness / fitness.sum()
             probabilities = np.nan_to_num(probabilities, nan=0)
             indexes = np.arange(0, BIRD_COUNT)
@@ -433,6 +470,7 @@ while not stoped:
                 fitness[bird_idx]  = 0
 
             alive_count = BIRD_COUNT
+            score = 0
 
     ######################################## Draw
     window_surface.fill((33,33,33))
@@ -479,6 +517,16 @@ while not stoped:
                     pygame.draw.circle(game_surface, (255, 0, 0), world_to_screen([birds_x, birds_y[bird_idx]]),
                                        bird_half_width * (1/texture_to_world_scale * game_scale[0]),
                                        hitboxes_width)
+
+        # Score
+        score_str = str(score)
+        total_score_width = score_numbers_widths * len(score_str)
+        score_x = -1 * total_score_width / 2
+        score_y = background_half_height * 0.6
+        for number in score_str:
+            blit(score_numbers_textures[int(number)], [score_x, score_y], 0)
+            score_x += score_numbers_widths
+
 
         # Game surface
         window_surface.blit(game_surface, (0, 0))
@@ -660,8 +708,35 @@ while not stoped:
         _, mutation_magnitude = imgui.slider_float("Mutation magnitude", mutation_magnitude, 0, 2)
         _, crossover_propability = imgui.slider_float("Crossover propablility", crossover_propability, 0, 1)
 
-        _, punish_hitting_ground = imgui.checkbox('(Experimental) Punish for hittin ground', punish_hitting_ground)
-        _, punish_flying_above_screen = imgui.checkbox('(Experimental) Punish for flying above screen', punish_flying_above_screen)
+        imgui.text('Fitness calculation')
+
+        _, use_reward_point_for_time_survived = imgui.checkbox('Give points for time survived', use_reward_point_for_time_survived)
+        if use_reward_point_for_time_survived:
+            imgui.indent()
+            _, reward_points_for_time_survived = imgui.input_int('Points for time survived', reward_points_for_time_survived)
+            imgui.spacing()
+            imgui.unindent()
+
+        _, use_reward_points_for_passing_pipe = imgui.checkbox('Give points for passing pipes', use_reward_points_for_passing_pipe)
+        if use_reward_points_for_passing_pipe:
+            imgui.indent()
+            _, reward_points_for_passing_pipe = imgui.input_int('Points for passing pipes', reward_points_for_passing_pipe)
+            imgui.spacing()
+            imgui.unindent()
+
+        _, use_punish_points_hitting_ground = imgui.checkbox('Punish for hitting ground', use_punish_points_hitting_ground)
+        if use_punish_points_hitting_ground:
+            imgui.indent()
+            _, punish_points_hitting_ground = imgui.input_int('Points for hittin ground', punish_points_hitting_ground)
+            imgui.spacing()
+            imgui.unindent()
+
+        _, use_punish_points_flying_above_screen = imgui.checkbox('Punish for flying above screen', use_punish_points_flying_above_screen)
+        if use_punish_points_flying_above_screen:
+            imgui.indent()
+            _, punish_points_flying_above_screen = imgui.input_int('Points for flying above screen', punish_points_flying_above_screen)
+            imgui.spacing()
+            imgui.unindent()
 
         if imgui.button('START SIMULATION'):
             failed = False
