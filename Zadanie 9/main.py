@@ -57,21 +57,19 @@ while not stoped:
             game_surface = pygame.Surface(window_dim)
 
         elif event.type == pygame.KEYDOWN:
-            match event.key:
-                case pygame.K_q | pygame.K_ESCAPE:
-                    stoped = True
+            if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+                stoped = True
 
-                case pygame.K_w | pygame.K_UP:
-                    player_dir = -1
-                case pygame.K_s | pygame.K_DOWN:
-                    player_dir = 1
+            elif event.key == pygame.K_w or event.key == pygame.K_UP:
+                player_dir = -1
+            elif event.key ==  pygame.K_s or event.key == pygame.K_DOWN:
+                player_dir = 1
 
         elif event.type == pygame.KEYUP:
-            match event.key:
-                case pygame.K_w | pygame.K_UP:
-                    player_dir = 0
-                case pygame.K_s | pygame.K_DOWN:
-                    player_dir = 0
+            if event.key == pygame.K_w or event.key == pygame.K_UP:
+                player_dir = 0
+            elif event.key ==  pygame.K_s or event.key == pygame.K_DOWN:
+                player_dir = 0
 
     ######################################## Update
     player_x = window_dim[0] * 0.05 - player_width/2
