@@ -1,2 +1,2 @@
-# pip install pygame imgui[pygame] numpy PyOpenGL
-# python ./main.py
+$ pip install pygame imgui[pygame] numpy PyOpenGL
+$ python ./main.py
