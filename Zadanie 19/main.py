@@ -63,3 +63,48 @@ def heron(a, b, c):
 
 print(heron(3, 4, 5) == 6)
 print(heron(7, 24, 25) == 84)
+
+########################################
+# 19.6
+def dynamic_p(i, j):
+    dp = [[0] * (j + 1) for _ in range(i + 1)]
+
+    for x in range(i + 1):
+        for y in range(j + 1):
+            if x == 0 and y == 0:
+                dp[x][y] = 0.5
+            elif x > 0 and y == 0:
+                dp[x][y] = 0.0
+            elif x == 0 and y > 0:
+                dp[x][y] = 1.0
+            else:
+                dp[x][y] = 0.5 * (dp[x - 1][y] + dp[x][y - 1])
+
+    return dp[i][j]
+
+def recursive_p(i, j):
+    if i == 0 and j == 0:
+        return 0.5
+    elif i > 0 and j == 0:
+        return 0.0
+    elif i == 0 and j > 0:
+        return 1.0
+    else:
+        return 0.5 * (recursive_p(i - 1, j) + recursive_p(i, j - 1))
+
+
+i, j = 0, 0
+print(f"dynamiczne P({i}, {j}) = {dynamic_p(i, j)}")
+print(f"Rekurencja P({i}, {j}) = {recursive_p(i, j)}")
+
+i, j = 10, 0
+print(f"dynamiczne P({i}, {j}) = {dynamic_p(i, j)}")
+print(f"Rekurencja P({i}, {j}) = {recursive_p(i, j)}")
+
+i, j = 0, 10
+print(f"dynamiczne P({i}, {j}) = {dynamic_p(i, j)}")
+print(f"Rekurencja P({i}, {j}) = {recursive_p(i, j)}")
+
+i, j = 10, 10
+print(f"dynamiczne P({i}, {j}) = {dynamic_p(i, j)}")
+print(f"Rekurencja P({i}, {j}) = {recursive_p(i, j)}")
