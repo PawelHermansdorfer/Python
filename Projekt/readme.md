@@ -1,15 +1,18 @@
-# Opis projektu
+# Flappy bird - FFNN with GA 
+## Opis projektu
 Projekt przedstawia wizualizację procesu uczenia sieci neuronowej sterującej grą Flappy Bird przy użyciu algorytmu genetycznego. Algorytm genetyczny optymalizuje sieć neuronową, aby umożliwić postaci w grze (ptakowi) przetrwanie jak najdłużej, omijając przeszkody.
 
 # Funkcjonalności
 - Wizualizacja przebiegu uczenia się AI w czasie rzeczywistym.
-- Interaktywny podgląd kolejnych generacji, pokazujący:
-- Wyniki (np. odległość przebyta przez ptaki).
-- Ewolucję sieci neuronowej (mutacje, selekcja, krzyżowanie).
-- Zrozumiałe prezentowanie danych o wydajności w każdej generacji.
+- Mozliwosc konfigurowania algorytmu generycznego i optymalizowanej sieci neuronowej
 
+## Technologie
+ - Python: Główny język programowania.
+ - Pygame: Wizualizacja gry Flappy Bird i sieci neuronowej
+ - NumPy: Operacje matematyczne i manipulacja danymi.
+ - PyImgui: Implementacja interfejsu uzytkownika
 
-# Uruchamianie
+## Jak uruchomić 
 ```Shell
 $ pip install pygame imgui[pygame] numpy PyOpenGL
 $ python ./main.py
