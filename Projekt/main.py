@@ -1,7 +1,3 @@
-# TODO(Pawel Hermansdorfer): Wieghts * <0.95, 1.05> if wieght is 0 then it won't change
-# TODO(Pawel Hermansdorfer): Fitness boost for passing pipe
-# TODO(Pawel Hermansdorfer): Draw score(passed pipes)
-
 # TODO(Pawel Hermansdorfer): mutacje gauss + semgo gaussa (metaeolucja)
 
 import time
