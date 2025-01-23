@@ -1,4 +1,5 @@
 # TODO(Pawel Hermansdorfer): mutacje gauss + semgo gaussa (metaeolucja)
+# TODO(Pawel Hermansdorfer): Stochastic gradient descent  after each generation with small learning rate to direct algorithm
 
 import time
 import os
