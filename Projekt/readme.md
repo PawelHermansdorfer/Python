@@ -9,7 +9,7 @@ Projekt przedstawia wizualizację procesu uczenia sieci neuronowej sterującej g
 ## Konfiguracje
 Podczas ekranu początkowego aplikacji użytkownik ma możliwość wybrania architektury sieci tzn. jakie wejścia dostaje sieć i ilość ukrytych neuronów. Może również zmienić parametry algorytmu genetycznego: włączyć lub wyłączyć elityzm, zmienić rozmiar populacji oraz prawdopodobieństwo zajścia mutacji i krzyżowania.
 
-# Możliwe wejścia sieci
+### Możliwe wejścia sieci
 <p align="center">
 <img src="./inputs.png" width="350" />
 </p>
