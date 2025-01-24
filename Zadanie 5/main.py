@@ -26,10 +26,7 @@ class TestFractions(unittest.TestCase):
     def test_div_frac(self):
         self.assertEqual(div_frac([2, 3], [2, 3]), [1,1])
         self.assertEqual(div_frac(self.zero, [2, 3]), self.zero)
-        try:
-            div_frac([1, 2], self.zero)
-        except ZeroDivisionError:
-            pass
+        self.assertRaises(ZeroDivisionError,  div_frac, [1, 2], self.zero)
 
     def test_is_positive(self):
         self.assertTrue(is_positive([1, 2]))
