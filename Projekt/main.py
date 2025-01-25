@@ -1,5 +1,5 @@
-# TODO(Pawel Hermansdorfer): mutacje gauss + semgo gaussa (metaeolucja)
-# TODO(Pawel Hermansdorfer): Stochastic gradient descent  after each generation with small learning rate to direct algorithm
+# TODO(Pawel Hermansdorfer): gaussian mutations + mutate sigma over time to decrease magnitude of mutations and increase algorithm precision (metaevolution)
+# TODO(Pawel Hermansdorfer): Stochastic gradient descent after each generation with small learning rate to direct algorithm
 
 import time
 import os
@@ -259,15 +259,24 @@ while not stoped:
         if event.type == pygame.QUIT:
             stoped = True
         elif event.type == pygame.KEYDOWN:
-            match event.key:
-                case pygame.K_q:
-                    stoped = True
-                case pygame.K_SPACE:
-                    if GAME_STARTED:
-                        if game_speed_factor == 0:
-                            game_speed_factor = 1
-                        else:
-                            game_speed_factor = 0
+            if event.key == pygame.K_q:
+                stoped = True
+            elif event.key == pygame.K_SPACE:
+                if GAME_STARTED:
+                    if game_speed_factor == 0:
+                        game_speed_factor = 1
+                    else:
+                        game_speed_factor = 0
+
+            # match event.key:
+            #     case pygame.K_q:
+            #         stoped = True
+            #     case pygame.K_SPACE:
+            #         if GAME_STARTED:
+            #             if game_speed_factor == 0:
+            #                 game_speed_factor = 1
+            #             else:
+            #                 game_speed_factor = 0
 
         impl.process_event(event)
 
@@ -327,36 +336,66 @@ while not stoped:
                     inputs = [0 for _ in range(input_count)]
                     for input_idx in range(len(inputs)):
                         value = 0
-                        match nn_inputs_order[input_idx]:
-                            case 'Bird\'s position on Y axis':
-                                value = birds_y[bird_idx]
-                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+                        if nn_inputs_order[input_idx] == 'Bird\'s position on Y axis':
+                            value = birds_y[bird_idx]
+                            if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
 
-                            case 'Bird\'s position on X axis':
-                                value = birds_x
-                                if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+                        elif nn_inputs_order[input_idx] == 'Bird\'s position on X axis':
+                            value = birds_x
+                            if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
 
-                            case 'Bird\'s velocity on Y axis':
-                                value = bird_vel[bird_idx]
-                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+                        elif nn_inputs_order[input_idx] == 'Bird\'s velocity on Y axis':
+                            value = bird_vel[bird_idx]
+                            if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
 
-                            case 'Next pipe\'s position on X axis':
-                                value = left_side_of_next_pipe
-                                if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+                        elif nn_inputs_order[input_idx] == 'Next pipe\'s position on X axis':
+                            value = left_side_of_next_pipe
+                            if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
 
-                            case 'Next gaps\'s position on Y axis':
-                                value = top_of_bottom_next_pipe
-                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+                        elif nn_inputs_order[input_idx] == 'Next gaps\'s position on Y axis':
+                            value = top_of_bottom_next_pipe
+                            if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
 
-                            case 'Bird\'s distance to next pipe':
-                                value = birds_x -left_side_of_next_pipe
-                                if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+                        elif nn_inputs_order[input_idx] == 'Bird\'s distance to next pipe':
+                            value = birds_x -left_side_of_next_pipe
+                            if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
 
-                            case 'Difference between bird and next gap on Y axis':
-                                value = birds_y[bird_idx] - top_of_bottom_next_pipe
-                                if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+                        elif nn_inputs_order[input_idx] == 'Difference between bird and next gap on Y axis':
+                            value = birds_y[bird_idx] - top_of_bottom_next_pipe
+                            if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
 
                         inputs[input_idx] = value
+
+                        # match nn_inputs_order[input_idx]:
+                        #     case 'Bird\'s position on Y axis':
+                        #         value = birds_y[bird_idx]
+                        #         if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+
+                        #     case 'Bird\'s position on X axis':
+                        #         value = birds_x
+                        #         if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+
+                        #     case 'Bird\'s velocity on Y axis':
+                        #         value = bird_vel[bird_idx]
+                        #         if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+
+                        #     case 'Next pipe\'s position on X axis':
+                        #         value = left_side_of_next_pipe
+                        #         if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+
+                        #     case 'Next gaps\'s position on Y axis':
+                        #         value = top_of_bottom_next_pipe
+                        #         if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+
+                        #     case 'Bird\'s distance to next pipe':
+                        #         value = birds_x -left_side_of_next_pipe
+                        #         if normalize_inputs: value = limit(value + background_half_width, 0, background_width) / background_width
+
+                        #     case 'Difference between bird and next gap on Y axis':
+                        #         value = birds_y[bird_idx] - top_of_bottom_next_pipe
+                        #         if normalize_inputs: value = limit(value + background_half_height, 0, background_height) / background_height
+                        # inputs[input_idx] = value
+
 
                     input_values[bird_idx]  = np.array(inputs)
                     hidden_values[bird_idx] = np.tanh(input_values[bird_idx] @  hidden_weights[bird_idx] + hidden_biases[bird_idx])
