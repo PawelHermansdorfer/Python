@@ -742,9 +742,9 @@ while not stoped:
 
         _, elitism = imgui.checkbox('Elitism', elitism)
 
-        _, mutation_propability = imgui.slider_float("Mutation propablility", mutation_propability, 0, 1)
+        _, mutation_propability = imgui.slider_float("Mutation probability", mutation_propability, 0, 1)
         _, mutation_magnitude = imgui.slider_float("Mutation magnitude", mutation_magnitude, 0, 2)
-        _, crossover_propability = imgui.slider_float("Crossover propablility", crossover_propability, 0, 1)
+        _, crossover_propability = imgui.slider_float("Crossover probability", crossover_propability, 0, 1)
 
         imgui.text('Fitness calculation')
 
